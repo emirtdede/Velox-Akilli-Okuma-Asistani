@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with optional authentication provider and preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unified User ID" },
+        "createdAt": { "type": "number", "description": "Timestamp of creation" },
+        "provider": { "type": "string", "description": "Authentication provider (google, github, anonymous)" },
+        "dailyGoalWords": { "type": "number", "description": "Daily reading goal in words" },
+        "theme": { "type": "string", "description": "Currently activated layout theme" }
+      },
+      "required": ["uid", "createdAt", "provider"]
+    },
+    "Book": {
+      "title": "Book",
+      "description": "EPUB or parsed text record tracked in client or cloud library",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unified Document ID" },
+        "ownerUid": { "type": "string", "description": "User ID of the document owner" },
+        "title": { "type": "string", "description": "Document Title" },
+        "content": { "type": "string", "description": "Full book raw content" },
+        "currentWordIndex": { "type": "number", "description": "Last read word offset" },
+        "progress": { "type": "number", "description": "Progress percentage (0-100)" },
+        "lastReadDate": { "type": "string", "description": "ISO format date of last read activity" },
+        "speedWpm": { "type": "number", "description": "WPM tempo used in RSVP reader" },
+        "groupSize": { "type": "number", "description": "RSVP word group chunk size" },
+        "estimatedMinutesTotal": { "type": "number", "description": "Overall duration estimation" },
+        "tags": { "type": "array", "description": "Metadata category labels" }
+      },
+      "required": ["id", "ownerUid", "title", "content"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "A single logged cognitive RSVP session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unified Session ID" },
+        "ownerUid": { "type": "string", "description": "User ID of the session conductor" },
+        "timestamp": { "type": "number", "description": "Session start timestamp" },
+        "wordCount": { "type": "number", "description": "Total words read in active session" },
+        "durationSeconds": { "type": "number", "description": "Duration in seconds" },
+        "maxSpeedWpm": { "type": "number", "description": "Highest speed reached" }
+      },
+      "required": ["id", "ownerUid", "timestamp", "wordCount", "durationSeconds"]
+    },
+    "DNA": {
+      "title": "DNA",
+      "description": "Continuous Cognitive state snapshots and behavioral vectors of the user",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string", "description": "User ID of the cognitive tracking subject" },
+        "updatedAt": { "type": "number", "description": "Timestamp of last snapshot sync" },
+        "fdn": { "type": "number", "description": "Nöral yorgunluk delta" },
+        "rtn": { "type": "number", "description": "Durumsal kavrama direnci" },
+        "psn": { "type": "number", "description": "Bilgi emilim basıncı" },
+        "rcn": { "type": "number", "description": "Aktif anımsama yüzdesi" },
+        "dpn": { "type": "number", "description": "Derin uyumlanma katsayısı" },
+        "wpmMismatch": { "type": "number", "description": "Tempo uyuşmazlığı" }
+      },
+      "required": ["ownerUid", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profiles, credentials metadata, and customized preferences"
+    },
+    "/library/{bookId}": {
+      "schema": "Book",
+      "description": "Stores text resources, custom epubs, bookmarks, parsed contents, and difficulty indicators"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Chronicle of reading history, micro-intervals, and logged progress records"
+    },
+    "/dna/{userId}": {
+      "schema": "DNA",
+      "description": "Continuous cloud alignment records for deep neural modeling vectors"
+    }
+  }
+}
