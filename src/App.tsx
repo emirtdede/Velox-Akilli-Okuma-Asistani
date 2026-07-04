@@ -3143,6 +3143,7 @@ function SettingsPage({
   const [selectedProvider, setSelectedProvider] = useState(aiProvider);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [optDays, setOptDays] = useState(30);
+  const isLightTheme = currentThemeType === 'light' || currentThemeType === 'sepia' || currentThemeType === 'nord';
 
   const [shortcuts, setShortcuts] = useState(() => {
     try {
