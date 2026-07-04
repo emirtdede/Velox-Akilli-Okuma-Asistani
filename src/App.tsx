@@ -22,6 +22,7 @@ import {
 import { BookMark, ThemeConfig, THEMES, ThemeType } from './types';
 import { StorageService } from './utils/storage';
 import ThemeSelector from './components/ThemeSelector';
+import { useTranslation } from './utils/i18n';
 import {
   Activity,
   BarChart3,
@@ -90,7 +91,7 @@ const LazyPanelFallback = () => <div className="p-4 text-xs opacity-60">Yükleni
 
 type AppTab = 'home' | 'progress' | 'workspace' | 'quiz' | 'guide' | 'settings' | 'about' | 'reader';
 type WorkspaceTab = 'content' | 'notes' | 'analysis' | 'actions';
-type SettingsTab = 'appearance' | 'ai' | 'data' | 'shortcuts';
+type SettingsTab = 'appearance' | 'ai' | 'data' | 'shortcuts' | 'language';
 type BookFilter = 'all' | 'active' | 'completed';
 type SidebarMode = 'full' | 'compact' | 'hidden';
 
@@ -118,7 +119,8 @@ const SETTINGS_TABS = [
   { id: 'appearance' as SettingsTab, label: 'Görünüm', icon: Palette },
   { id: 'ai' as SettingsTab, label: 'Yapay Zeka', icon: KeyRound },
   { id: 'shortcuts' as SettingsTab, label: 'Klavye Kısayolları', icon: Keyboard },
-  { id: 'data' as SettingsTab, label: 'Veri Yönetimi', icon: Database }
+  { id: 'data' as SettingsTab, label: 'Veri Yönetimi', icon: Database },
+  { id: 'language' as SettingsTab, label: 'Dil Seçeneği (Language)', icon: BookOpenCheck }
 ];
 
 function parseRoute(pathname = typeof window !== 'undefined' ? window.location.pathname : '/'): { tab: AppTab; bookId: string | null; readerBookId: string | null; settingsTab?: SettingsTab } {
@@ -199,6 +201,7 @@ function readLocalWithLegacy(key: string, legacyKey: string) {
 }
 
 export default function App() {
+  const { t, lang, setLanguage } = useTranslation();
   const initialRoute = parseRoute();
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.tab);
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('content');
@@ -916,6 +919,9 @@ export default function App() {
               onThemeChange={handleThemeChange}
               onSaveAiSettings={saveAiSettings}
               onClearAiSettings={clearAiSettings}
+              t={t}
+              lang={lang}
+              setLanguage={setLanguage}
             />
           )}
 
@@ -1018,11 +1024,13 @@ function Sidebar({
   onNavigate: (tab: AppTab) => void;
   onSetMode: (mode: SidebarMode) => void;
 }) {
+  const { t } = useTranslation();
+
   if (mode === 'hidden') {
     return (
       <button
         onClick={() => onSetMode('full')}
-        title="Menüyü aç"
+        title={t('nav_settings')}
         className="fixed left-0 top-1/2 -translate-y-1/2 z-50 h-14 w-7 rounded-r-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/25 grid place-items-center transition-all"
       >
         <ChevronsRight className="w-4 h-4" />
@@ -1043,7 +1051,7 @@ function Sidebar({
               <button
                 type="button"
                 onClick={() => isCompact && onSetMode('full')}
-                title={isCompact ? 'Menüyü genişlet' : APP_NAME}
+                title={isCompact ? 'Expand Menu' : APP_NAME}
                 className={`${isCompact ? 'cursor-pointer group/brand' : 'cursor-default'} relative h-12 w-12 grid place-items-center bg-transparent shrink-0 overflow-hidden`}
               >
                 <img src="/velox-icon.svg" alt="Velox" className={`${isCompact ? 'group-hover/brand:opacity-0' : ''} w-12 h-12 object-contain transition-opacity`} />
@@ -1051,15 +1059,15 @@ function Sidebar({
               </button>
               <div className={`${labelClass} transition-all duration-200 min-w-0 overflow-hidden`}>
               <h1 className="text-lg font-black tracking-tight text-indigo-500 leading-tight">Velox</h1>
-              <p className="text-[10px] opacity-65 whitespace-nowrap">{APP_DESCRIPTION}</p>
+              <p className="text-[10px] opacity-65 whitespace-nowrap">{t('home_subtitle')}</p>
               </div>
             </div>
             {isFull && (
               <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => onSetMode('compact')} title="Minimal menü" className={`h-8 w-8 rounded-lg border ${theme.border} grid place-items-center text-stone-500 dark:text-zinc-400 hover:text-current`}>
+                <button onClick={() => onSetMode('compact')} title="Minimize" className={`h-8 w-8 rounded-lg border ${theme.border} grid place-items-center text-stone-500 dark:text-zinc-400 hover:text-current`}>
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button onClick={() => onSetMode('hidden')} title="Menüyü gizle" className={`h-8 w-8 rounded-lg border ${theme.border} grid place-items-center text-stone-500 dark:text-zinc-400 hover:text-current`}>
+                <button onClick={() => onSetMode('hidden')} title="Hide" className={`h-8 w-8 rounded-lg border ${theme.border} grid place-items-center text-stone-500 dark:text-zinc-400 hover:text-current`}>
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1068,17 +1076,17 @@ function Sidebar({
 
           <button
             onClick={onAdd}
-            title={isCompact ? 'Yeni Belge Ekle' : undefined}
+            title={isCompact ? t('home_action_add') : undefined}
             className={`${isCompact ? 'justify-center px-0 gap-0' : 'px-3 gap-3'} h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center shadow-lg shadow-indigo-600/15`}
           >
             <Plus className="w-4 h-4 shrink-0" />
-            <span className={`${labelClass} whitespace-nowrap transition-all overflow-hidden`}>Yeni Belge Ekle</span>
+            <span className={`${labelClass} whitespace-nowrap transition-all overflow-hidden`}>{t('home_action_add')}</span>
           </button>
 
-          <div title={isCompact ? `Yapay Zeka ${aiEnabled ? 'Aktif' : 'Pasif'}` : undefined} className={`${isCompact ? 'justify-center px-0 gap-0' : 'px-3 gap-3'} h-10 rounded-xl border ${theme.border} bg-white/[0.025] flex items-center`}>
+          <div title={isCompact ? `AI ${aiEnabled ? t('st_ai_status_active') : t('st_ai_status_passive')}` : undefined} className={`${isCompact ? 'justify-center px-0 gap-0' : 'px-3 gap-3'} h-10 rounded-xl border ${theme.border} bg-white/[0.025] flex items-center`}>
             <span className={`w-2 h-2 rounded-full ${aiEnabled ? 'bg-emerald-400' : 'bg-stone-500'}`} />
             <span className={`${labelClass} text-[10px] font-black uppercase tracking-wide whitespace-nowrap transition-all overflow-hidden`}>
-              Yapay Zeka {aiEnabled ? 'Aktif' : 'Pasif'}
+              AI {aiEnabled ? t('st_ai_status_active') : t('st_ai_status_passive')}
             </span>
           </div>
 
@@ -1087,7 +1095,7 @@ function Sidebar({
               <button
                 key={item.tab}
                 onClick={() => onNavigate(item.tab)}
-                title={item.label}
+                title={t(`nav_${item.tab}` as any)}
                 className={`${isCompact ? 'justify-center px-0 gap-0' : 'px-3 gap-3'} h-11 rounded-xl flex items-center text-xs font-bold transition-all ${
                   activeTab === item.tab
                     ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15'
@@ -1096,7 +1104,7 @@ function Sidebar({
               >
                 <item.icon className="w-4 h-4 shrink-0" />
                 <span className={`${labelClass} whitespace-nowrap transition-all overflow-hidden`}>
-                  {item.label}
+                  {t(`nav_${item.tab}` as any)}
                 </span>
               </button>
             ))}
@@ -3138,7 +3146,10 @@ function SettingsPage({
   mutedClass,
   onThemeChange,
   onSaveAiSettings,
-  onClearAiSettings
+  onClearAiSettings,
+  t,
+  lang,
+  setLanguage
 }: any) {
   const [selectedProvider, setSelectedProvider] = useState(aiProvider);
   const [resetConfirmText, setResetConfirmText] = useState('');
@@ -3189,12 +3200,12 @@ function SettingsPage({
   }, [recordingKey, shortcuts]);
 
   const SHORTCUT_LABELS: Record<string, string> = {
-    playPause: 'Oynat / Duraklat',
-    back10: '10 Kelime Geri Git',
-    forward10: '10 Kelime İleri Git',
-    speedUp: 'Hız Artır (WPM)',
-    speedDown: 'Hız Azalt (WPM)',
-    exit: 'Okuyucudan Çık (ESC)'
+    playPause: t('sr_start') + ' / ' + t('sr_stop'),
+    back10: '10 ' + t('home_words_unit') + ' ' + (lang === 'tr' ? 'Geri' : 'Back'),
+    forward10: '10 ' + t('home_words_unit') + ' ' + (lang === 'tr' ? 'İleri' : 'Forward'),
+    speedUp: (lang === 'tr' ? 'Hız Artır' : 'Increase Speed') + ' (WPM)',
+    speedDown: (lang === 'tr' ? 'Hız Azalt' : 'Decrease Speed') + ' (WPM)',
+    exit: t('sr_close') + ' (ESC)'
   };
 
   const handleSave = () => {
@@ -3225,7 +3236,7 @@ function SettingsPage({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `velox_yedek_${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `velox_backup_${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -3238,13 +3249,13 @@ function SettingsPage({
       try {
         const data = JSON.parse(e.target?.result as string);
         if (typeof data !== 'object' || data === null) {
-          alert('Geçersiz yedek dosyası.');
+          alert(t('st_validation_invalid_backup'));
           return;
         }
         const keys = Object.keys(data);
         const hasVeloxKey = keys.some(k => k.startsWith('velox_') || k.startsWith('readflow_'));
         if (!hasVeloxKey) {
-          alert('Geçersiz yedek dosyası (Uyumlu Velox verisi bulunamadı).');
+          alert(t('st_validation_no_velox_data'));
           return;
         }
 
@@ -3252,10 +3263,10 @@ function SettingsPage({
           localStorage.setItem(k, data[k]);
         });
 
-        alert('Yedek başarıyla yüklendi! Uygulama şimdi yenilenecek.');
+        alert(t('st_validation_success_restore'));
         window.location.reload();
       } catch (err) {
-        alert('Yedek yüklenirken hata oluştu: ' + (err as Error).message);
+        alert('Error: ' + (err as Error).message);
       }
     };
     reader.readAsText(file);
@@ -3270,13 +3281,13 @@ function SettingsPage({
       }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
-    alert('Tüm veriler sıfırlandı. Uygulama şimdi ilk haline dönecek.');
+    alert(t('st_validation_success_reset'));
     window.location.reload();
   };
 
   const handleOptimizeData = () => {
     if (optDays < 1) {
-      alert('Lütfen geçerli bir gün sayısı girin.');
+      alert('Please enter a valid number of days.');
       return;
     }
     const cutoff = new Date();
@@ -3321,15 +3332,15 @@ function SettingsPage({
       console.error(e);
     }
 
-    alert(`Optimizasyon tamamlandı!\n- ${cleanedHistoryCount} eski okuma günlüğü silindi.\n- ${cleanedQuizzesCount} eski sınav sonucu temizlendi.\nUygulama şimdi yenilenecek.`);
+    alert(t('st_validation_success_optimize'));
     window.location.reload();
   };
 
-  const isResetEnabled = resetConfirmText.toLowerCase() === 'sil';
+  const isResetEnabled = resetConfirmText.toLowerCase() === (lang === 'tr' ? 'sil' : 'sil'); // Typo protection, let it accept 'sil' or 'delete' if needed, but spec says "sil"
 
   return (
     <section className="flex flex-col gap-5">
-      <PageHeader title="Ayarlar ve Destek" description="Görünüm, yapay zeka sağlayıcısı ve uygulama bilgileri tek ekranda." titleClass={titleClass} mutedClass={mutedClass} />
+      <PageHeader title={t('st_title')} description={t('st_subtitle')} titleClass={titleClass} mutedClass={mutedClass} />
  
       <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5">
         <aside className={`rounded-2xl border p-3 ${surfaceClass}`}>
@@ -3340,7 +3351,7 @@ function SettingsPage({
                 onClick={() => setSettingsTab(tab.id)}
                 className={`h-11 px-3 rounded-xl text-xs font-black flex items-center gap-3 ${settingsTab === tab.id ? 'bg-indigo-600 text-white' : `${mutedClass} hover:bg-stone-100 dark:hover:bg-zinc-900`}`}
               >
-                <tab.icon className="w-4 h-4" /> {tab.label}
+                <tab.icon className="w-4 h-4" /> {t(`st_tab_${tab.id}` as any)}
               </button>
             ))}
           </div>
@@ -3348,14 +3359,20 @@ function SettingsPage({
  
         <div className={`rounded-2xl border p-5 ${surfaceClass}`}>
           {settingsTab === 'appearance' && (
-            <ThemeSelector currentTheme={currentThemeType} onChangeTheme={onThemeChange} />
+            <div className="flex flex-col gap-5">
+              <div>
+                <h2 className={`text-lg font-black ${titleClass}`}>{t('st_theme_title')}</h2>
+                <p className={`text-sm mt-1 ${mutedClass}`}>{t('st_theme_desc')}</p>
+              </div>
+              <ThemeSelector currentTheme={currentThemeType} onChangeTheme={onThemeChange} />
+            </div>
           )}
  
           {settingsTab === 'ai' && (
             <div className="flex flex-col gap-5">
               <div>
-                <h2 className={`text-lg font-black ${titleClass}`}>Yapay Zeka Sağlayıcısı</h2>
-                <p className={`text-sm mt-1 ${mutedClass}`}>Metin analizi, kelime sözlüğü ve kavrama testleri için kullanmak istediğiniz yapay zekayı seçin.</p>
+                <h2 className={`text-lg font-black ${titleClass}`}>{t('st_ai_title')}</h2>
+                <p className={`text-sm mt-1 ${mutedClass}`}>{t('st_ai_desc')}</p>
               </div>
  
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -3363,7 +3380,7 @@ function SettingsPage({
                   { id: 'gemini', label: 'Google Gemini' },
                   { id: 'openai', label: 'OpenAI ChatGPT' },
                   { id: 'claude', label: 'Anthropic Claude' },
-                  { id: 'local', label: 'Lokal Model (Ollama)' }
+                  { id: 'local', label: 'Ollama (Lokal)' }
                 ].map(p => (
                   <button
                     key={p.id}
@@ -3386,7 +3403,7 @@ function SettingsPage({
                       autoComplete="new-password"
                       value={geminiDraftKey}
                       onChange={(event) => setGeminiDraftKey(event.target.value)}
-                      placeholder="Gemini API anahtarınızı girin"
+                      placeholder="Gemini API key"
                       className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
                     />
                   </label>
@@ -3402,7 +3419,7 @@ function SettingsPage({
                       autoComplete="new-password"
                       value={openaiDraftKey}
                       onChange={(event) => setOpenaiDraftKey(event.target.value)}
-                      placeholder="OpenAI API anahtarınızı girin"
+                      placeholder="OpenAI API key"
                       className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
                     />
                   </label>
@@ -3418,7 +3435,7 @@ function SettingsPage({
                       autoComplete="new-password"
                       value={claudeDraftKey}
                       onChange={(event) => setClaudeDraftKey(event.target.value)}
-                      placeholder="Claude API anahtarınızı girin"
+                      placeholder="Claude API key"
                       className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
                     />
                   </label>
@@ -3443,7 +3460,7 @@ function SettingsPage({
                       type="text"
                       value={localModelDraft}
                       onChange={(event) => setLocalModelDraft(event.target.value)}
-                      placeholder="llama3 veya gemma2"
+                      placeholder="llama3"
                       className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
                     />
                   </label>
@@ -3451,15 +3468,15 @@ function SettingsPage({
               )}
  
               <div className="flex gap-2">
-                <button onClick={handleSave} className="h-12 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black">Kaydet</button>
-                <button onClick={handleClear} className="h-12 px-5 rounded-xl border border-stone-200 dark:border-zinc-800 text-xs font-black">Ayarları Sıfırla</button>
+                <button onClick={handleSave} className="h-12 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black">{t('st_ai_save_btn')}</button>
+                <button onClick={handleClear} className="h-12 px-5 rounded-xl border border-stone-200 dark:border-zinc-800 text-xs font-black">{t('st_ai_reset_btn')}</button>
               </div>
  
               <div className={`rounded-2xl border p-4 ${softSurfaceClass}`}>
                 <p className={`text-xs font-black ${aiStatus.enabled ? 'text-emerald-500' : mutedClass}`}>
-                  Yapay Zeka {aiStatus.enabled ? `Aktif (${aiStatus.provider?.toUpperCase()})` : 'Pasif'}
+                  {aiStatus.enabled ? `${t('st_ai_status_active')} (${aiStatus.provider?.toUpperCase()})` : t('st_ai_status_passive')}
                 </p>
-                <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>{aiSaveMessage || 'Yapay zeka özellikleri belge detayı içindeki Yapay Zeka Analizi ve Yapay Zeka Soru & Aksiyon sekmelerinde çalışır.'}</p>
+                <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>{aiSaveMessage || t('st_ai_status_desc')}</p>
               </div>
             </div>
           )}
@@ -3467,17 +3484,17 @@ function SettingsPage({
           {settingsTab === 'shortcuts' && (
             <div className="flex flex-col gap-5">
               <div>
-                <h2 className={`text-lg font-black ${titleClass}`}>Klavye Kısayolları</h2>
-                <p className={`text-sm mt-1 ${mutedClass}`}>Okuyucu içerisindeki kısayol tuşlarını üzerine tıklayıp yeni bir tuşa basarak dinamik olarak değiştirebilirsiniz.</p>
+                <h2 className={`text-lg font-black ${titleClass}`}>{t('st_shortcuts_title')}</h2>
+                <p className={`text-sm mt-1 ${mutedClass}`}>{t('st_shortcuts_desc')}</p>
               </div>
 
               <div className="border border-stone-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="bg-stone-50 dark:bg-zinc-900/40 border-b border-stone-200 dark:border-zinc-800">
-                      <th className="p-3 font-black">Eylem</th>
-                      <th className="p-3 font-black">Atanan Tuş (Kısayol)</th>
-                      <th className="p-3 font-black text-right">İşlem</th>
+                      <th className="p-3 font-black">{t('st_shortcuts_action')}</th>
+                      <th className="p-3 font-black">{t('st_shortcuts_assigned')}</th>
+                      <th className="p-3 font-black text-right">{t('st_shortcuts_process')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100 dark:divide-zinc-900">
@@ -3486,7 +3503,7 @@ function SettingsPage({
                         <td className="p-3 font-bold">{SHORTCUT_LABELS[key] || key}</td>
                         <td className="p-3">
                           {recordingKey === key ? (
-                            <span className="animate-pulse text-indigo-600 dark:text-indigo-400 font-black">Yeni bir tuşa basın...</span>
+                            <span className="animate-pulse text-indigo-600 dark:text-indigo-400 font-black">{t('st_shortcuts_waiting')}</span>
                           ) : (
                             <kbd className="px-2 py-1 rounded bg-stone-100 dark:bg-zinc-800 font-mono text-[11px] font-bold border border-stone-200 dark:border-zinc-700">
                               {shortcuts[key as keyof typeof shortcuts]}
@@ -3499,7 +3516,7 @@ function SettingsPage({
                             disabled={recordingKey !== null}
                             className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] disabled:opacity-50"
                           >
-                            Değiştir
+                            {t('st_shortcuts_change')}
                           </button>
                         </td>
                       </tr>
@@ -3509,7 +3526,7 @@ function SettingsPage({
               </div>
 
               <div className={`p-4 rounded-xl border ${softSurfaceClass} flex justify-between items-center`}>
-                <span className="text-xs font-bold">Kısayolları varsayılan ayarlara döndür:</span>
+                <span className="text-xs font-bold">{t('st_shortcuts_reset')}</span>
                 <button
                   onClick={() => {
                     const defaults = {
@@ -3525,7 +3542,7 @@ function SettingsPage({
                   }}
                   className="h-8 px-3 rounded-lg border text-xs font-bold hover:bg-stone-50 dark:hover:bg-zinc-900"
                 >
-                  Varsayılana Dön
+                  {t('st_shortcuts_reset_btn')}
                 </button>
               </div>
             </div>
@@ -3534,36 +3551,36 @@ function SettingsPage({
           {settingsTab === 'data' && (
             <div className="flex flex-col gap-6">
               <div>
-                <h2 className={`text-lg font-black ${titleClass}`}>Veri Yönetimi ve Destek</h2>
-                <p className={`text-sm mt-1 ${mutedClass}`}>Uygulama veritabanını yedekleyin, yedeği yükleyin veya veritabanını optimize edin.</p>
+                <h2 className={`text-lg font-black ${titleClass}`}>{t('st_data_title')}</h2>
+                <p className={`text-sm mt-1 ${mutedClass}`}>{t('st_data_desc')}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className={`p-5 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3`}>
                   <div>
                     <h4 className="text-sm font-black flex items-center gap-2">
-                      <FileDown className="w-4 h-4 text-indigo-500" /> Veri Yedeği Al
+                      <FileDown className="w-4 h-4 text-indigo-500" /> {t('st_data_backup_title')}
                     </h4>
                     <p className={`text-xs mt-1.5 leading-relaxed ${mutedClass}`}>
-                      Kütüphanenizdeki tüm belgeleri, oluşturduğunuz quizleri, bilgi kartlarını ve istatistiklerinizi tek bir yedek dosyası (.json) olarak indirin.
+                      {t('st_data_backup_desc')}
                     </p>
                   </div>
                   <button onClick={handleBackup} className="h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black self-start">
-                    Yedek Dosyası İndir
+                    {t('st_data_backup_btn')}
                   </button>
                 </div>
 
                 <div className={`p-5 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3`}>
                   <div>
                     <h4 className="text-sm font-black flex items-center gap-2">
-                      <UploadCloud className="w-4 h-4 text-indigo-500" /> Yedek Yükle
+                      <UploadCloud className="w-4 h-4 text-indigo-500" /> {t('st_data_restore_title')}
                     </h4>
                     <p className={`text-xs mt-1.5 leading-relaxed ${mutedClass}`}>
-                      Daha önce aldığınız bir Velox yedek dosyasını (.json) seçerek tüm verilerinizi geri yükleyin. Mevcut verilerin üzerine yazılacaktır.
+                      {t('st_data_restore_desc')}
                     </p>
                   </div>
                   <label className="h-10 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 text-xs font-black flex items-center justify-center cursor-pointer hover:bg-stone-50 dark:hover:bg-zinc-900/60 self-start">
-                    Dosya Seç ve Geri Yükle
+                    {t('st_data_restore_btn')}
                     <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
                   </label>
                 </div>
@@ -3571,15 +3588,15 @@ function SettingsPage({
                 <div className={`p-5 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3`}>
                   <div>
                     <h4 className="text-sm font-black flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 text-amber-500" /> Veritabanını Optimize Et
+                      <RefreshCw className="w-4 h-4 text-amber-500" /> {t('st_data_optimize_title')}
                     </h4>
                     <p className={`text-xs mt-1.5 leading-relaxed ${mutedClass}`}>
-                      Performansı artırmak amacıyla okuma günlüğü ve quiz geçmişi gibi logları temizleyin. Belirleyeceğiniz gün sayısından önceki veriler kalıcı olarak silinir.
+                      {t('st_data_optimize_desc')}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2.5">
                     <label className="flex items-center gap-2">
-                      <span className="text-xs font-bold">Kalan Gün Sayısı:</span>
+                      <span className="text-xs font-bold">{t('st_data_optimize_days')}</span>
                       <input
                         type="number"
                         min="1"
@@ -3589,7 +3606,7 @@ function SettingsPage({
                       />
                     </label>
                     <button onClick={handleOptimizeData} className="h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black self-start">
-                      Geçmişi Temizle (Optimize Et)
+                      {t('st_data_optimize_btn')}
                     </button>
                   </div>
                 </div>
@@ -3597,10 +3614,10 @@ function SettingsPage({
                 <div className={`p-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 dark:bg-rose-950/5 flex flex-col justify-between gap-3`}>
                   <div>
                     <h4 className="text-sm font-black text-rose-500 flex items-center gap-2">
-                      <Trash2 className="w-4 h-4" /> Tüm Verileri Sıfırla
+                      <Trash2 className="w-4 h-4" /> {t('st_data_reset_title')}
                     </h4>
                     <p className={`text-xs mt-1.5 leading-relaxed ${mutedClass}`}>
-                      Velox'taki tüm belgeleri, notları, quizleri ve istatistiklerinizi kalıcı olarak silin. Bu işlem geri alınamaz!
+                      {t('st_data_reset_desc')}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -3608,7 +3625,7 @@ function SettingsPage({
                       type="text"
                       value={resetConfirmText}
                       onChange={(e) => setResetConfirmText(e.target.value)}
-                      placeholder="Onaylamak için 'sil' yazın"
+                      placeholder={t('st_data_reset_confirm')}
                       className={`h-9 px-3 rounded-lg border text-xs outline-none ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950 text-zinc-100'}`}
                     />
                     <button
@@ -3616,10 +3633,45 @@ function SettingsPage({
                       disabled={!isResetEnabled}
                       className="h-10 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black disabled:opacity-50 self-start"
                     >
-                      Veritabanını Sıfırla
+                      {t('st_data_reset_btn')}
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {settingsTab === 'language' && (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h2 className={`text-lg font-black ${titleClass}`}>{t('st_lang_title')}</h2>
+                <p className={`text-sm mt-1 ${mutedClass}`}>{t('st_lang_desc')}</p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => setLanguage('tr')}
+                  className={`h-14 px-5 rounded-2xl border text-xs font-black flex items-center justify-between transition-all ${
+                    lang === 'tr'
+                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-xl shadow-indigo-600/10'
+                      : 'border-stone-200 dark:border-zinc-800 hover:bg-stone-50 dark:hover:bg-zinc-900/60'
+                  }`}
+                >
+                  <span>{t('st_lang_tr')}</span>
+                  {lang === 'tr' && <BookOpenCheck className="w-5 h-5" />}
+                </button>
+
+                <button
+                  onClick={() => setLanguage('en')}
+                  className={`h-14 px-5 rounded-2xl border text-xs font-black flex items-center justify-between transition-all ${
+                    lang === 'en'
+                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-xl shadow-indigo-600/10'
+                      : 'border-stone-200 dark:border-zinc-800 hover:bg-stone-50 dark:hover:bg-zinc-900/60'
+                  }`}
+                >
+                  <span>{t('st_lang_en')}</span>
+                  {lang === 'en' && <BookOpenCheck className="w-5 h-5" />}
+                </button>
               </div>
             </div>
           )}
