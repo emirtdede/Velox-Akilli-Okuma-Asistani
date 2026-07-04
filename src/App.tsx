@@ -845,6 +845,7 @@ export default function App() {
               }}
               onAddDocument={() => setIsAddOpen(true)}
               showAlert={showCustomAlert}
+              setStats={setStats}
             />
           )}
 
@@ -2138,6 +2139,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
 }
 
 function WorkspacePage({
+  setStats,
   books,
   filteredBooks,
   selectedBook,
@@ -2227,6 +2229,7 @@ function WorkspacePage({
   setEditContent: (val: string) => void;
   refreshBooks: () => void;
   showAlert: (message: string, title?: string) => void;
+  setStats: React.Dispatch<React.SetStateAction<any>>;
 }) {
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -3849,6 +3852,10 @@ function RecallQuizPage({
     setQuizHistory(updatedHistory);
     localStorage.setItem('velox_quiz_history', JSON.stringify(updatedHistory));
 
+    // Update quiz streak
+    const nextStats = StorageService.logQuizSession();
+    setStats(nextStats);
+
     setShowResultModal(true);
   };
 
@@ -4088,6 +4095,10 @@ function RecallQuizPage({
       lastReviewed: new Date().toLocaleDateString('tr-TR')
     };
     saveFlashcards(updated);
+
+    // Update card streak
+    const nextStats = StorageService.logCardSession();
+    setStats(nextStats);
 
     // Keep history stack for Undo
     setCardHistoryStack([{ cardId, prevStatus }, ...cardHistoryStack].slice(0, 10));

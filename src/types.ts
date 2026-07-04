@@ -14,6 +14,10 @@ export interface UserStats {
   totalReadingTimeSeconds: number;
   dailyStreak: number;
   lastReadDate: string | null; // YYYY-MM-DD
+  quizStreak?: number;
+  lastQuizDate?: string | null;
+  cardStreak?: number;
+  lastCardDate?: string | null;
   maxSpeedWpm: number;
   longestSessionSeconds: number;
   dailyGoalWords: number; // e.g. 5000 words

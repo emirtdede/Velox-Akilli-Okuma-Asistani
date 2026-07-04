@@ -76,6 +76,10 @@ const DEFAULT_STATS: UserStats = {
   totalReadingTimeSeconds: 3450,
   dailyStreak: 3,
   lastReadDate: new Date().toISOString().split('T')[0],
+  quizStreak: 1,
+  lastQuizDate: new Date().toISOString().split('T')[0],
+  cardStreak: 2,
+  lastCardDate: new Date().toISOString().split('T')[0],
   maxSpeedWpm: 450,
   longestSessionSeconds: 980,
   dailyGoalWords: 3000,
@@ -354,6 +358,56 @@ export const StorageService = {
     import('./storageAdapter').then(({ StorageAdapter }) => {
       StorageAdapter.logSessionToCloud(wordCount, durationSeconds);
     }).catch(() => {});
+    return stats;
+  },
+
+  logQuizSession(): UserStats {
+    const stats = this.getStats();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentStreak = stats.quizStreak || 0;
+    const lastQuizStr = stats.lastQuizDate || null;
+
+    if (lastQuizStr) {
+      const lastDate = new Date(lastQuizStr);
+      const today = new Date(todayStr);
+      const diffTime = Math.abs(today.getTime() - lastDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        stats.quizStreak = currentStreak + 1;
+      } else if (diffDays > 1) {
+        stats.quizStreak = 1;
+      }
+    } else {
+      stats.quizStreak = 1;
+    }
+    stats.lastQuizDate = todayStr;
+    this.saveStats(stats);
+    return stats;
+  },
+
+  logCardSession(): UserStats {
+    const stats = this.getStats();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentStreak = stats.cardStreak || 0;
+    const lastCardStr = stats.lastCardDate || null;
+
+    if (lastCardStr) {
+      const lastDate = new Date(lastCardStr);
+      const today = new Date(todayStr);
+      const diffTime = Math.abs(today.getTime() - lastDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        stats.cardStreak = currentStreak + 1;
+      } else if (diffDays > 1) {
+        stats.cardStreak = 1;
+      }
+    } else {
+      stats.cardStreak = 1;
+    }
+    stats.lastCardDate = todayStr;
+    this.saveStats(stats);
     return stats;
   },
 
