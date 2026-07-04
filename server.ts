@@ -70,21 +70,50 @@ function toUserFacingAiError(error: any) {
   if (info.statusCode === 400 || info.statusCode === 401 || info.statusCode === 403) {
     return 'Gemini API key kabul edilmedi veya bu proje için yetki yok. Anahtarı, faturalandırma/proje izinlerini ve Gemini API erişimini kontrol edin.';
   }
-  return info.message || 'Gemini isteği tamamlanamadı.';
+  return info.message || 'Gemini isteği başarısız oldu.';
 }
 
-function getRequestApiKey(req?: any) {
-  const headerKey = typeof req?.header === 'function' ? req.header('x-gemini-api-key') : null;
-  const userKey = typeof headerKey === 'string' ? headerKey.trim() : '';
-  return userKey || process.env.GEMINI_API_KEY || '';
+interface AiConfig {
+  provider: string;
+  apiKey: string;
+  localUrl: string;
+  model: string;
 }
 
-function getAiStatus(apiKey = process.env.GEMINI_API_KEY || '') {
-  const enabled = Boolean(apiKey);
+function getRequestAiConfig(req: any): AiConfig {
+  const provider = String(req.header('x-ai-provider') || 'gemini').trim().toLowerCase();
+  
+  // Legacy support for x-gemini-api-key
+  let apiKey = String(req.header('x-ai-api-key') || req.header('x-gemini-api-key') || '').trim();
+  
+  if (!apiKey) {
+    if (provider === 'gemini') {
+      apiKey = process.env.GEMINI_API_KEY || '';
+    } else if (provider === 'openai') {
+      apiKey = process.env.OPENAI_API_KEY || '';
+    } else if (provider === 'claude') {
+      apiKey = process.env.ANTHROPIC_API_KEY || '';
+    }
+  }
+
+  const localUrl = String(req.header('x-ai-local-url') || process.env.LOCAL_AI_URL || 'http://localhost:11434').trim();
+  const model = String(req.header('x-ai-model') || '').trim();
+
+  return { provider, apiKey, localUrl, model };
+}
+
+function getAiStatus(config: AiConfig) {
+  let enabled = false;
+  if (config.provider === 'gemini' || config.provider === 'openai' || config.provider === 'claude') {
+    enabled = Boolean(config.apiKey);
+  } else if (config.provider === 'local') {
+    enabled = Boolean(config.localUrl);
+  }
+
   return {
     enabled,
-    provider: enabled ? 'gemini' : 'none',
-    source: enabled && apiKey === process.env.GEMINI_API_KEY ? 'environment' : enabled ? 'user' : 'none'
+    provider: config.provider,
+    source: enabled ? 'user' : 'none'
   };
 }
 
@@ -112,44 +141,180 @@ function getGeminiClient(apiKey: string): GoogleGenAI {
   return createGeminiClient(apiKey);
 }
 
-async function generateContentWithFallback(
-  client: GoogleGenAI,
-  params: {
-    contents: any;
-    config?: any;
+function cleanAndParseJson(text: string) {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n/, '').replace(/\n```$/, '').trim();
   }
-) {
-  let lastError: any = null;
+  
+  const startIdx = cleaned.indexOf('{');
+  const endIdx = cleaned.lastIndexOf('}');
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    cleaned = cleaned.slice(startIdx, endIdx + 1);
+  }
 
-  for (const model of AI_MODEL_FALLBACKS) {
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        if (attempt > 1) {
-          console.log(`[AI] Retrying model ${model}. Attempt ${attempt}/2`);
-        }
-        return await client.models.generateContent({
-          model,
-          contents: params.contents,
-          config: params.config,
-        });
-      } catch (error: any) {
-        lastError = error;
-        const info = extractAiErrorInfo(error);
-        console.warn(`[AI Warning] Model ${model} failed. Status: ${info.statusCode || info.reason || 'unknown'}. Attempt ${attempt}/2`);
+  try {
+    return JSON.parse(cleaned);
+  } catch (e: any) {
+    console.error('[JSON Parse Error] Raw text was:', text);
+    throw new Error(`JSON ayrıştırma hatası: ${e.message}`);
+  }
+}
 
-        if (!isRetryableAiError(error)) {
-          throw new Error(toUserFacingAiError(error));
-        }
+async function generateStructuredJson(
+  config: AiConfig,
+  prompt: string,
+  schema: any
+): Promise<any> {
+  const { provider, apiKey, localUrl, model } = config;
 
-        if (attempt < 2) {
-          await wait(900);
-        }
+  if (provider === 'gemini') {
+    const client = getGeminiClient(apiKey);
+    const geminiModel = model || AI_MODEL_FALLBACKS[0] || 'gemini-3.5-flash';
+    
+    const response = await client.models.generateContent({
+      model: geminiModel,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: schema
       }
-    }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("Gemini modelinden boş yanıt döndü.");
+    return JSON.parse(text.trim());
   }
 
-  console.error('[AI Error] All Gemini models failed:', lastError?.message || lastError);
-  throw new Error(toUserFacingAiError(lastError));
+  if (provider === 'openai') {
+    if (!apiKey) {
+      throw new Error("OpenAI API Key bulunamadı. Ayarlar kısmından ekleyin.");
+    }
+    const openaiModel = model || 'gpt-4o-mini';
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: openaiModel,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: `You are an AI assistant for the Velox Speed Reading App. You must output ONLY a valid JSON object matching the requested schema. Schema: ${JSON.stringify(schema)}`
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(`OpenAI API Hatası: ${errData?.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) throw new Error("OpenAI'dan boş yanıt döndü.");
+    return JSON.parse(text.trim());
+  }
+
+  if (provider === 'claude') {
+    if (!apiKey) {
+      throw new Error("Claude (Anthropic) API Key bulunamadı. Ayarlar kısmından ekleyin.");
+    }
+    const claudeModel = model || 'claude-3-5-sonnet-20241022';
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: claudeModel,
+        max_tokens: 4000,
+        messages: [
+          {
+            role: 'user',
+            content: `${prompt}\n\nIMPORTANT: Return ONLY a valid JSON object matching this schema, without any conversational prefix/suffix, markdown blocks (like \`\`\`json), or extra text:\n${JSON.stringify(schema)}`
+          }
+        ],
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(`Claude API Hatası: ${errData?.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text;
+    if (!text) throw new Error("Claude'dan boş yanıt döndü.");
+    return cleanAndParseJson(text);
+  }
+
+  if (provider === 'local') {
+    const localModel = model || 'llama3';
+    const cleanUrl = localUrl.replace(/\/$/, '');
+    
+    try {
+      const response = await fetch(`${cleanUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: localModel,
+          prompt: `${prompt}\n\nIMPORTANT: Return ONLY a valid JSON object matching this schema, without any conversational prefix/suffix, markdown blocks, or extra text:\n${JSON.stringify(schema)}`,
+          format: 'json',
+          stream: false,
+          options: {
+            temperature: 0.1
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.response;
+        if (!text) throw new Error("Lokal modelden boş yanıt döndü.");
+        return cleanAndParseJson(text);
+      }
+    } catch (err: any) {
+      console.warn('[AI Local] Native Ollama /api/generate failed, trying OpenAI-compatible /v1/chat/completions...', err.message);
+    }
+
+    const chatUrl = cleanUrl.endsWith('/v1') ? `${cleanUrl}/chat/completions` : `${cleanUrl}/v1/chat/completions`;
+    const response = await fetch(chatUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: localModel,
+        messages: [
+          {
+            role: 'system',
+            content: `You must output ONLY a valid JSON object matching the requested schema. Schema: ${JSON.stringify(schema)}`
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Lokal model bağlantı hatası (${response.status}): ${response.statusText}. Lütfen yerel yapay zeka uygulamanızın (örn. Ollama) çalıştığından ve modelin yüklü olduğundan emin olun.`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) throw new Error("Lokal modelden boş yanıt döndü.");
+    return cleanAndParseJson(text);
+  }
+
+  throw new Error(`Bilinmeyen yapay zeka sağlayıcısı: ${provider}`);
 }
 
 async function startServer() {
@@ -164,7 +329,7 @@ async function startServer() {
   });
 
   app.get('/api/ai/status', (req, res) => {
-    res.json(getAiStatus(getRequestApiKey(req)));
+    res.json(getAiStatus(getRequestAiConfig(req)));
   });
 
   // 1. AI Summarize Route
@@ -176,51 +341,42 @@ async function startServer() {
     }
 
     try {
-      const client = getGeminiClient(getRequestApiKey(req));
-      console.log(`[AI] Summarize requested. Text length: ${text.length}`);
+      const config = getRequestAiConfig(req);
+      console.log(`[AI] Summarize requested via ${config.provider}. Text length: ${text.length}`);
 
-      const response = await generateContentWithFallback(client, {
-        contents: `Aşağıdaki metni analiz et ve şu 3 alanı içeren Türkçe bir özet çıkar:
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          mainIdea: {
+            type: Type.STRING,
+            description: 'Metnin ana fikri veya temel tezi (Tek cümle)'
+          },
+          keyPoints: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Metinden çıkarılan en önemli 3-5 nokta'
+          },
+          summary: {
+            type: Type.STRING,
+            description: 'Metnin 2-3 cümlelik sade ve akıcı Türkçe özeti'
+          }
+        },
+        required: ['mainIdea', 'keyPoints', 'summary']
+      };
+
+      const prompt = `Aşağıdaki metni analiz et ve şu 3 alanı içeren Türkçe bir özet çıkar:
 1. Ana Fikir (Kısa ve net bir cümle)
 2. Önemli Noktalar (En fazla 5 adet can alıcı madde)
 3. Özet (Metnin ana hatlarını açıklayan 2-3 cümlelik akıcı paragraf)
 
 Metin:
-${text.slice(0, 5000)}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              mainIdea: {
-                type: Type.STRING,
-                description: 'Metnin ana fikri veya temel tezi (Tek cümle)'
-              },
-              keyPoints: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: 'Metinden çıkarılan en önemli 3-5 nokta'
-              },
-              summary: {
-                type: Type.STRING,
-                description: 'Metnin 2-3 cümlelik sade ve akıcı Türkçe özeti'
-              }
-            },
-            required: ['mainIdea', 'keyPoints', 'summary']
-          }
-        }
-      });
+${text.slice(0, 5000)}`;
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error("Yapay zekadan boş yanıt döndü.");
-      }
-
-      const parsed = JSON.parse(responseText.trim());
+      const parsed = await generateStructuredJson(config, prompt, schema);
       res.json(parsed);
     } catch (error: any) {
       console.error('[AI Error] Summarize failed:', error);
-      res.status(500).json({ error: error.message || 'Özet oluşturulurken hata meydan geldi.' });
+      res.status(500).json({ error: error.message || 'Özet oluşturulurken hata meydana geldi.' });
     }
   });
 
@@ -233,49 +389,40 @@ ${text.slice(0, 5000)}`,
     }
 
     try {
-      const client = getGeminiClient(getRequestApiKey(req));
-      console.log(`[AI] Difficulty Analysis requested. Text length: ${text.length}`);
+      const config = getRequestAiConfig(req);
+      console.log(`[AI] Difficulty Analysis requested via ${config.provider}. Text length: ${text.length}`);
 
-      const response = await generateContentWithFallback(client, {
-        contents: `Aşağıdaki Türkçe veya yabancı dildeki metnin okuma zorluğunu analiz et.
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          score: {
+            type: Type.INTEGER,
+            description: '1 ile 100 arasında zorluk puanı (1=Çok Basit, 100=İleri Seviye İngilizce/Akademik Türkçe)'
+          },
+          level: {
+            type: Type.STRING,
+            description: 'Okuma kolaylığı düzeyi. Sadece şu üçünden biri olmalı: "Kolay", "Orta", "Zor"'
+          },
+          complexWords: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Metinde geçen zor, az bilinen veya teknik kelimeler/kavramlar listesi'
+          },
+          description: {
+            type: Type.STRING,
+            description: 'Metnin neden bu seviyede olduğuna dair Türkçe açıklamalı 1-2 cümlelik değerlendirme'
+          }
+        },
+        required: ['score', 'level', 'complexWords', 'description']
+      };
+
+      const prompt = `Aşağıdaki Türkçe veya yabancı dildeki metnin okuma zorluğunu analiz et.
 Zorluk seviyesini (Kolay, Orta, Zor şeklinde), zorluk puanını (1-100 ölçeğinde), metinde geçen zor/tıbbi/sektörel/akademik 3-7 kelimeyi ayırt et ve neden bu düzeyde olduğunu açıklayan kısa bir değerlendirme metni yaz.
 
 Metin:
-${text.slice(0, 3000)}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              score: {
-                type: Type.INTEGER,
-                description: '1 ile 100 arasında zorluk puanı (1=Çok Basit, 100=İleri Seviye İngilizce/Akademik Türkçe)'
-              },
-              level: {
-                type: Type.STRING,
-                description: 'Okuma kolaylığı düzeyi. Sadece şu üçünden biri olmalı: "Kolay", "Orta", "Zor"'
-              },
-              complexWords: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: 'Metinde geçen zor, az bilinen veya teknik kelimeler/kavramlar listesi'
-              },
-              description: {
-                type: Type.STRING,
-                description: 'Metnin neden bu seviyede olduğuna dair Türkçe açıklamalı 1-2 cümlelik değerlendirme'
-              }
-            },
-            required: ['score', 'level', 'complexWords', 'description']
-          }
-        }
-      });
+${text.slice(0, 3000)}`;
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error("Yapay zekadan boş analiz döndü.");
-      }
-
-      const parsed = JSON.parse(responseText.trim());
+      const parsed = await generateStructuredJson(config, prompt, schema);
       res.json(parsed);
     } catch (error: any) {
       console.error('[AI Error] Difficulty Analysis failed:', error);
@@ -292,46 +439,37 @@ ${text.slice(0, 3000)}`,
     }
 
     try {
-      const client = getGeminiClient(getRequestApiKey(req));
-      console.log(`[AI] Define requested for: "${word}" in Context: "${context || 'No context'}"`);
+      const config = getRequestAiConfig(req);
+      console.log(`[AI] Define requested via ${config.provider} for: "${word}" in Context: "${context || 'No context'}"`);
 
-      const response = await generateContentWithFallback(client, {
-        contents: `Aşağıdaki kelimenin anlamını${context ? ` (verilen bağlam dikkate alınarak)` : ''} Türkçe olarak açıkla. Eş anlamlılarını ve kelimenin yer aldığı 2 tane örnek cümle yaz.
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          word: { type: Type.STRING },
+          definition: {
+            type: Type.STRING,
+            description: 'Kelimenin net, sade ve anlaşılır Türkçe sözlük anlamı'
+          },
+          synonyms: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Eş anlamlı olan veya benzer anlama gelen 2-4 kelime'
+          },
+          examples: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Kelimenin kullanımını gösteren 2 adet örnek Türkçe cümle'
+          }
+        },
+        required: ['word', 'definition', 'synonyms', 'examples']
+      };
+
+      const prompt = `Aşağıdaki kelimenin anlamını${context ? ` (verilen bağlam dikkate alınarak)` : ''} Türkçe olarak açıkla. Eş anlamlılarını ve kelimenin yer aldığı 2 tane örnek cümle yaz.
 
 Aranan Kelime: "${word}"
-${context ? `Bağlam / Cümle: "${context}"` : ''}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              word: { type: Type.STRING },
-              definition: {
-                type: Type.STRING,
-                description: 'Kelimenin net, sade ve anlaşılır Türkçe sözlük anlamı'
-              },
-              synonyms: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: 'Eş anlamlı olan veya benzer anlama gelen 2-4 kelime'
-              },
-              examples: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: 'Kelimenin kullanımını gösteren 2 adet örnek Türkçe cümle'
-              }
-            },
-            required: ['word', 'definition', 'synonyms', 'examples']
-          }
-        }
-      });
+${context ? `Bağlam / Cümle: "${context}"` : ''}`;
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error("Kelime anlamı üretilemedi.");
-      }
-
-      const parsed = JSON.parse(responseText.trim());
+      const parsed = await generateStructuredJson(config, prompt, schema);
       res.json(parsed);
     } catch (error: any) {
       console.error('[AI Error] Word Definition failed:', error);
@@ -348,54 +486,45 @@ ${context ? `Bağlam / Cümle: "${context}"` : ''}`,
     }
 
     try {
-      const client = getGeminiClient(getRequestApiKey(req));
-      console.log(`[AI] Comprehension Quiz requested for: "${title || 'Untitled'}" (Questions: ${questionCount}, Difficulty: ${difficulty})`);
+      const config = getRequestAiConfig(req);
+      console.log(`[AI] Comprehension Quiz requested via ${config.provider} for: "${title || 'Untitled'}" (Questions: ${questionCount}, Difficulty: ${difficulty})`);
 
-      const response = await generateContentWithFallback(client, {
-        contents: `Aşağıdaki metinden ${questionCount} adet çoktan seçmeli (A, B, C, D) Türkçe kavrama sorusu oluştur. Okuduğunu anlama seviyesini test etsin.
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          questions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                question: { type: Type.STRING, description: 'Sorunun metni' },
+                options: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: '4 adet cevap şıkkı (A, B, C, D)'
+                },
+                correctOptionIndex: { type: Type.INTEGER, description: 'Doğru şıkkın sıfır tabanlı indeksi (0-3)' },
+                explanation: { type: Type.STRING, description: 'Neden bu şıkkın doğru olduğuna dair kısa açıklama' }
+              },
+              required: ['question', 'options', 'correctOptionIndex', 'explanation']
+            }
+          },
+          difficultyRating: {
+            type: Type.INTEGER,
+            description: 'Metnin anlama ve kavrama zorluk derecesi (1-100)'
+          }
+        },
+        required: ['questions', 'difficultyRating']
+      };
+
+      const prompt = `Aşağıdaki metnden ${questionCount} adet çoktan seçmeli (A, B, C, D) Türkçe kavrama sorusu oluştur. Okuduğunu anlama seviyesini test etsin.
 Sınavın zorluk derecesi "${difficulty}" olsun. Metnin tahmini kavrama zorluk derecesini (1-100 arasında) belirle.
 
 Metin Başlığı: "${title || 'Metin'}"
 Metin İçeriği:
-${text.slice(0, 4000)}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              questions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    question: { type: Type.STRING, description: 'Sorunun metni' },
-                    options: {
-                      type: Type.ARRAY,
-                      items: { type: Type.STRING },
-                      description: '4 adet cevap şıkkı (A, B, C, D)'
-                    },
-                    correctOptionIndex: { type: Type.INTEGER, description: 'Doğru şıkkın sıfır tabanlı indeksi (0-3)' },
-                    explanation: { type: Type.STRING, description: 'Neden bu şıkkın doğru olduğuna dair kısa açıklama' }
-                  },
-                  required: ['question', 'options', 'correctOptionIndex', 'explanation']
-                }
-              },
-              difficultyRating: {
-                type: Type.INTEGER,
-                description: 'Metnin anlama ve kavrama zorluk derecesi (1-100)'
-              }
-            },
-            required: ['questions', 'difficultyRating']
-          }
-        }
-      });
+${text.slice(0, 4000)}`;
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error("Soru üretilemedi.");
-      }
-
-      const parsed = JSON.parse(responseText.trim());
+      const parsed = await generateStructuredJson(config, prompt, schema);
       res.json(parsed);
     } catch (error: any) {
       console.error('[AI Error] Comprehension Quiz generation failed:', error);
@@ -412,45 +541,36 @@ ${text.slice(0, 4000)}`,
     }
 
     try {
-      const client = getGeminiClient(getRequestApiKey(req));
-      console.log(`[AI] Knowledge Insights requested for: "${title || 'Untitled'}"`);
+      const config = getRequestAiConfig(req);
+      console.log(`[AI] Knowledge Insights requested via ${config.provider} for: "${title || 'Untitled'}"`);
 
-      const response = await generateContentWithFallback(client, {
-        contents: `Aşağıdaki metinden 3 adet kilit öngörü (insight), 1 adet günlük hayatta doğrudan uygulanabilir eylemsel alışkanlık/fikir (Actionable Idea) ve metinle uyuşan 1 adet disiplinlerarası zihinsel model (Mental Model) çıkar. Çıktıyı tamamen Türkçe olarak ver.
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          keyInsights: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Metnden çıkarılan en önemli 3 adet kilit felsefi veya teknik bulgu (insight)'
+          },
+          actionableIdea: {
+            type: Type.STRING,
+            description: 'Kullanıcının bugün kendi hayatında veya işinde uygulayabileceği somut bir aksiyon/alışkanlık adımı'
+          },
+          mentalModel: {
+            type: Type.STRING,
+            description: 'Metindeki dinamikleri açıklayan bir zihinsel model (Örn. Pareto İlkesi, Ebbinghaus Unutma Eğrisi, Sunk Cost Fallacy vb.)'
+          }
+        },
+        required: ['keyInsights', 'actionableIdea', 'mentalModel']
+      };
+
+      const prompt = `Aşağıdaki metinden 3 adet kilit öngörü (insight), 1 adet günlük hayatta doğrudan uygulanabilir eylemsel alışkanlık/fikir (Actionable Idea) ve metinle uyuşan 1 adet disiplinlerarası zihinsel model (Mental Model) çıkar. Çıktıyı tamamen Türkçe olarak ver.
 
 Metin Başlığı: "${title || 'Metin'}"
 Metin İçeriği:
-${text.slice(0, 4000)}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              keyInsights: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: 'Metinden çıkarılan en önemli 3 adet kilit felsefi veya teknik bulgu (insight)'
-              },
-              actionableIdea: {
-                type: Type.STRING,
-                description: 'Kullanıcının bugün kendi hayatında veya işinde uygulayabileceği somut bir aksiyon/alışkanlık adımı'
-              },
-              mentalModel: {
-                type: Type.STRING,
-                description: 'Metindeki dinamikleri açıklayan bir zihinsel model (Örn. Pareto İlkesi, Ebbinghaus Unutma Eğrisi, Sunk Cost Fallacy vb.)'
-              }
-            },
-            required: ['keyInsights', 'actionableIdea', 'mentalModel']
-          }
-        }
-      });
+${text.slice(0, 4000)}`;
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error("Öngörüler üretilemedi.");
-      }
-
-      const parsed = JSON.parse(responseText.trim());
+      const parsed = await generateStructuredJson(config, prompt, schema);
       res.json(parsed);
     } catch (error: any) {
       console.error('[AI Error] Insights failed:', error);
@@ -467,45 +587,36 @@ ${text.slice(0, 4000)}`,
     }
 
     try {
-      const client = getGeminiClient(getRequestApiKey(req));
-      console.log(`[AI] Flashcards requested for: "${title || 'Untitled'}" (Count: ${count}, Topic: ${topic})`);
+      const config = getRequestAiConfig(req);
+      console.log(`[AI] Flashcards requested via ${config.provider} for: "${title || 'Untitled'}" (Count: ${count}, Topic: ${topic})`);
 
-      const response = await generateContentWithFallback(client, {
-        contents: `Aşağıdaki metinden ${count} adet öğretici bilgi kartı (flashcard) oluştur. 
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          flashcards: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                front: { type: Type.STRING, description: 'Bilgi kartının ön yüzü (Soru, kavram veya terim)' },
+                back: { type: Type.STRING, description: 'Bilgi kartının arka yüzü (Cevap, tanım veya detaylı açıklama)' }
+              },
+              required: ['front', 'back']
+            }
+          }
+        },
+        required: ['flashcards']
+      };
+
+      const prompt = `Aşağıdaki metnden ${count} adet öğretici bilgi kartı (flashcard) oluştur. 
 Her kartın bir ön yüzü (soru/kavram) ve bir arka yüzü (cevap/açıklama) olmalıdır. 
 Kartların odak konusu veya türü: "${topic}" olsun. Çıktı dilinin tamamen Türkçe olmasına dikkat et.
 
 Metin Başlığı: "${title || 'Metin'}"
 Metin İçeriği:
-${text.slice(0, 4000)}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              flashcards: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    front: { type: Type.STRING, description: 'Bilgi kartının ön yüzü (Soru, kavram veya terim)' },
-                    back: { type: Type.STRING, description: 'Bilgi kartının arka yüzü (Cevap, tanım veya detaylı açıklama)' }
-                  },
-                  required: ['front', 'back']
-                }
-              }
-            },
-            required: ['flashcards']
-          }
-        }
-      });
+${text.slice(0, 4000)}`;
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error("Bilgi kartları üretilemedi.");
-      }
-
-      const parsed = JSON.parse(responseText.trim());
+      const parsed = await generateStructuredJson(config, prompt, schema);
       res.json(parsed);
     } catch (error: any) {
       console.error('[AI Error] Flashcards failed:', error);

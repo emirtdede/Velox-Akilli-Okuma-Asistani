@@ -81,9 +81,10 @@ function createWindow() {
 
   startServer();
 
-  if (!app.isPackaged) {
-    mainWindow.webContents.openDevTools();
-  }
+  // DevTools disabled as requested
+  // if (!app.isPackaged) {
+  //   mainWindow.webContents.openDevTools();
+  // }
 
   mainWindow.on('closed', () => {
     mainWindow = null;

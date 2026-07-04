@@ -190,8 +190,17 @@ export default function App() {
   const [stats, setStats] = useState(StorageService.getStats());
   const [prefs, setPrefs] = useState(StorageService.getPreferences());
   const [aiStatus, setAiStatus] = useState({ enabled: false, provider: 'none', checked: false });
+  const [aiProvider, setAiProvider] = useState<string>(() => localStorage.getItem('velox_ai_provider') || 'gemini');
   const [geminiApiKey, setGeminiApiKey] = useState(() => readLocalWithLegacy(GEMINI_KEY, LEGACY_GEMINI_KEY));
   const [geminiDraftKey, setGeminiDraftKey] = useState(() => readLocalWithLegacy(GEMINI_KEY, LEGACY_GEMINI_KEY));
+  const [openaiApiKey, setOpenaiApiKey] = useState(() => localStorage.getItem('velox_openai_api_key') || '');
+  const [openaiDraftKey, setOpenaiDraftKey] = useState(() => localStorage.getItem('velox_openai_api_key') || '');
+  const [claudeApiKey, setClaudeApiKey] = useState(() => localStorage.getItem('velox_claude_api_key') || '');
+  const [claudeDraftKey, setClaudeDraftKey] = useState(() => localStorage.getItem('velox_claude_api_key') || '');
+  const [localUrl, setLocalUrl] = useState(() => localStorage.getItem('velox_local_url') || 'http://localhost:11434');
+  const [localUrlDraft, setLocalUrlDraft] = useState(() => localStorage.getItem('velox_local_url') || 'http://localhost:11434');
+  const [localModel, setLocalModel] = useState(() => localStorage.getItem('velox_local_model') || 'llama3');
+  const [localModelDraft, setLocalModelDraft] = useState(() => localStorage.getItem('velox_local_model') || 'llama3');
   const [aiSaveMessage, setAiSaveMessage] = useState('');
   const [bookSearch, setBookSearch] = useState('');
   const [bookFilter, setBookFilter] = useState<BookFilter>('all');
@@ -463,18 +472,38 @@ export default function App() {
 
   const refreshBooks = () => setBooks(StorageService.getBooks());
 
-  const refreshAiStatus = (apiKey = geminiApiKey) => {
-    fetch('/api/ai/status', {
-      headers: apiKey ? { 'x-gemini-api-key': apiKey } : {}
-    })
+  const refreshAiStatus = (
+    provider = aiProvider,
+    geminiKey = geminiApiKey,
+    openaiKey = openaiApiKey,
+    claudeKey = claudeApiKey,
+    lUrl = localUrl,
+    lModel = localModel
+  ) => {
+    const headers: Record<string, string> = {
+      'x-ai-provider': provider
+    };
+    if (provider === 'gemini' && geminiKey) {
+      headers['x-ai-api-key'] = geminiKey;
+      headers['x-gemini-api-key'] = geminiKey;
+    } else if (provider === 'openai' && openaiKey) {
+      headers['x-ai-api-key'] = openaiKey;
+    } else if (provider === 'claude' && claudeKey) {
+      headers['x-ai-api-key'] = claudeKey;
+    } else if (provider === 'local') {
+      headers['x-ai-local-url'] = lUrl;
+      headers['x-ai-model'] = lModel;
+    }
+
+    fetch('/api/ai/status', { headers })
       .then(response => response.json())
       .then(data => setAiStatus({ enabled: Boolean(data.enabled), provider: data.provider || 'none', checked: true }))
       .catch(() => setAiStatus({ enabled: false, provider: 'none', checked: true }));
   };
 
   useEffect(() => {
-    refreshAiStatus(geminiApiKey);
-  }, [geminiApiKey]);
+    refreshAiStatus(aiProvider, geminiApiKey, openaiApiKey, claudeApiKey, localUrl, localModel);
+  }, [aiProvider, geminiApiKey, openaiApiKey, claudeApiKey, localUrl, localModel]);
 
   const navigateToTab = (tab: AppTab, bookId?: string | null, replace = false) => {
     setActiveTab(tab);
@@ -526,40 +555,92 @@ export default function App() {
     StorageService.savePreferences(nextPrefs);
   };
 
-  const saveGeminiApiKey = () => {
-    const cleanKey = geminiDraftKey.trim();
-    if (cleanKey) {
-      localStorage.setItem(GEMINI_KEY, cleanKey);
-      setGeminiApiKey(cleanKey);
-      setAiSaveMessage('Gemini API key kaydedildi. Yapay zeka araçları seçili belgeye bağlı olarak çalışır.');
-      refreshAiStatus(cleanKey);
-      return;
-    }
+  const saveAiSettings = (
+    provider: string,
+    geminiKey: string,
+    openaiKey: string,
+    claudeKey: string,
+    lUrl: string,
+    lModel: string
+  ) => {
+    localStorage.setItem('velox_ai_provider', provider);
+    setAiProvider(provider);
 
-    localStorage.removeItem(GEMINI_KEY);
-    localStorage.removeItem(LEGACY_GEMINI_KEY);
-    setGeminiApiKey('');
-    setAiStatus({ enabled: false, provider: 'none', checked: true });
-    setAiSaveMessage('API key kaldırıldı. Velox temel okuma ve not özellikleriyle çalışmaya devam eder.');
+    localStorage.setItem(GEMINI_KEY, geminiKey.trim());
+    setGeminiApiKey(geminiKey.trim());
+    setGeminiDraftKey(geminiKey.trim());
+
+    localStorage.setItem('velox_openai_api_key', openaiKey.trim());
+    setOpenaiApiKey(openaiKey.trim());
+    setOpenaiDraftKey(openaiKey.trim());
+
+    localStorage.setItem('velox_claude_api_key', claudeKey.trim());
+    setClaudeApiKey(claudeKey.trim());
+    setClaudeDraftKey(claudeKey.trim());
+
+    localStorage.setItem('velox_local_url', lUrl.trim());
+    setLocalUrl(lUrl.trim());
+    setLocalUrlDraft(lUrl.trim());
+
+    localStorage.setItem('velox_local_model', lModel.trim());
+    setLocalModel(lModel.trim());
+    setLocalModelDraft(lModel.trim());
+
+    setAiSaveMessage('Yapay zeka ayarları kaydedildi.');
+    refreshAiStatus(provider, geminiKey, openaiKey, claudeKey, lUrl, lModel);
   };
 
-  const clearGeminiApiKey = () => {
+  const clearAiSettings = () => {
+    localStorage.removeItem('velox_ai_provider');
+    setAiProvider('gemini');
+
     localStorage.removeItem(GEMINI_KEY);
     localStorage.removeItem(LEGACY_GEMINI_KEY);
-    setGeminiDraftKey('');
     setGeminiApiKey('');
+    setGeminiDraftKey('');
+
+    localStorage.removeItem('velox_openai_api_key');
+    setOpenaiApiKey('');
+    setOpenaiDraftKey('');
+
+    localStorage.removeItem('velox_claude_api_key');
+    setClaudeApiKey('');
+    setClaudeDraftKey('');
+
+    localStorage.removeItem('velox_local_url');
+    setLocalUrl('http://localhost:11434');
+    setLocalUrlDraft('http://localhost:11434');
+
+    localStorage.removeItem('velox_local_model');
+    setLocalModel('llama3');
+    setLocalModelDraft('llama3');
+
     setAiStatus({ enabled: false, provider: 'none', checked: true });
-    setAiSaveMessage('API key kaldırıldı. Velox AI olmadan kullanılabilir.');
+    setAiSaveMessage('Yapay zeka ayarları sıfırlandı.');
   };
 
   const saveBookNotes = (bookId: string) => {
     localStorage.setItem(noteKeyForBook(bookId), noteDrafts[bookId] || '');
   };
 
-  const aiHeaders = () => ({
-    'Content-Type': 'application/json',
-    ...(geminiApiKey ? { 'x-gemini-api-key': geminiApiKey } : {})
-  });
+  const aiHeaders = () => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-ai-provider': aiProvider
+    };
+    if (aiProvider === 'gemini' && geminiApiKey) {
+      headers['x-ai-api-key'] = geminiApiKey;
+      headers['x-gemini-api-key'] = geminiApiKey;
+    } else if (aiProvider === 'openai' && openaiApiKey) {
+      headers['x-ai-api-key'] = openaiApiKey;
+    } else if (aiProvider === 'claude' && claudeApiKey) {
+      headers['x-ai-api-key'] = claudeApiKey;
+    } else if (aiProvider === 'local') {
+      headers['x-ai-local-url'] = localUrl;
+      headers['x-ai-model'] = localModel;
+    }
+    return headers;
+  };
 
   const postAi = async (endpoint: string, body: Record<string, unknown>) => {
     const response = await fetch(endpoint, {
@@ -774,16 +855,26 @@ export default function App() {
               currentThemeType={currentThemeType}
               currentTheme={currentTheme}
               aiStatus={aiStatus}
+              aiProvider={aiProvider}
+              setAiProvider={setAiProvider}
               geminiDraftKey={geminiDraftKey}
               setGeminiDraftKey={setGeminiDraftKey}
+              openaiDraftKey={openaiDraftKey}
+              setOpenaiDraftKey={setOpenaiDraftKey}
+              claudeDraftKey={claudeDraftKey}
+              setClaudeDraftKey={setClaudeDraftKey}
+              localUrlDraft={localUrlDraft}
+              setLocalUrlDraft={setLocalUrlDraft}
+              localModelDraft={localModelDraft}
+              setLocalModelDraft={setLocalModelDraft}
               aiSaveMessage={aiSaveMessage}
               surfaceClass={surfaceClass}
               softSurfaceClass={softSurfaceClass}
               titleClass={titleClass}
               mutedClass={mutedClass}
               onThemeChange={handleThemeChange}
-              onSaveApiKey={saveGeminiApiKey}
-              onClearApiKey={clearGeminiApiKey}
+              onSaveAiSettings={saveAiSettings}
+              onClearAiSettings={clearAiSettings}
             />
           )}
 
@@ -1000,12 +1091,25 @@ function HomePage({
   }, [userGoals]);
 
   const handleSaveGoals = () => {
+    localStorage.setItem('velox_user_goals', JSON.stringify(editGoals));
     setUserGoals(editGoals);
     setIsEditingGoals(false);
   };
 
+  const todayQuizzesCount = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString('tr-TR');
+    return quizHistory.filter((h: any) => h.date && h.date.includes(todayStr)).length;
+  }, [quizHistory]);
+
+  const todayCardsCount = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString('tr-TR');
+    return flashcards.filter((c: any) => c.lastReviewed && c.lastReviewed.includes(todayStr)).length;
+  }, [flashcards]);
+
   // Circular progress for Daily Goal
   const wordPercentage = Math.min(100, Math.round((todayWords / Math.max(1, userGoals.dailyWords)) * 100));
+  const quizPercentage = Math.min(100, Math.round((todayQuizzesCount / Math.max(1, userGoals.dailyQuizzes)) * 100));
+  const cardPercentage = Math.min(100, Math.round((todayCardsCount / Math.max(1, userGoals.dailyCards)) * 100));
 
   // Core Metrics derived from stats
   const totalWords = stats.totalWordsRead || 0;
@@ -1146,35 +1250,100 @@ function HomePage({
         </div>
 
         {/* Circular Progress Target Ring Card */}
-        <div className={`p-6 rounded-3xl border flex items-center justify-between ${surfaceClass}`}>
-          <div className="flex flex-col gap-1">
-            <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>BUGÜNKÜ HEDEF</span>
-            <h3 className={`text-xl font-black mt-1 ${titleClass}`}>{todayWords} Kelime</h3>
-            <span className={`text-xs font-bold ${mutedClass}`}>Hedef: {userGoals.dailyWords.toLocaleString()}</span>
-            
-            <div className="flex items-center gap-1.5 mt-4 text-amber-500 text-xs font-black">
-              <Flame className="w-4 h-4 fill-amber-500" />
-              <span>{stats.dailyStreak || 0} Günlük Seri</span>
-            </div>
+        <div className={`p-6 rounded-3xl border flex flex-col gap-4 ${surfaceClass}`}>
+          <div className="flex items-center justify-between">
+            <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>BUGÜNKÜ HEDEFLER</span>
+            {!isEditingGoals && (
+              <button onClick={() => { setEditGoals({ ...userGoals }); setIsEditingGoals(true); }} className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline">Hedefleri Düzenle</button>
+            )}
           </div>
 
-          {/* SVG Circular Progress Ring */}
-          <div className="relative w-16 h-16 grid place-items-center shrink-0">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle cx="32" cy="32" r="24" className="stroke-stone-200 dark:stroke-zinc-800" strokeWidth="4" fill="transparent" />
-              <circle
-                cx="32"
-                cy="32"
-                r="24"
-                className="stroke-indigo-600 transition-all duration-300"
-                strokeWidth="4"
-                fill="transparent"
-                strokeDasharray={150.79}
-                strokeDashoffset={150.79 - (wordPercentage / 100) * 150.79}
-                strokeLinecap="round"
-              />
-            </svg>
-            <span className="absolute text-[10px] font-black text-current">%{wordPercentage}</span>
+          {isEditingGoals ? (
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-stone-505">Okuma Hedefi (Kelime)</span>
+                <input
+                  type="number"
+                  min="100"
+                  step="100"
+                  value={editGoals.dailyWords}
+                  onChange={(e) => setEditGoals({ ...editGoals, dailyWords: Math.max(1, Number(e.target.value)) })}
+                  className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
+                    isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
+                  }`}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-stone-505">Quiz Hedefi (Adet)</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={editGoals.dailyQuizzes}
+                  onChange={(e) => setEditGoals({ ...editGoals, dailyQuizzes: Math.max(1, Number(e.target.value)) })}
+                  className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
+                    isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
+                  }`}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-stone-505">Bilgi Kartı Hedefi (Tekrar)</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={editGoals.dailyCards}
+                  onChange={(e) => setEditGoals({ ...editGoals, dailyCards: Math.max(1, Number(e.target.value)) })}
+                  className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
+                    isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
+                  }`}
+                />
+              </label>
+              <div className="flex gap-2 mt-1">
+                <button onClick={handleSaveGoals} className="h-8 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black">Kaydet</button>
+                <button onClick={() => setIsEditingGoals(false)} className={`h-8 px-3 rounded-xl border text-[10px] font-black ${isLightTheme ? 'border-stone-300 hover:bg-stone-50' : 'border-stone-250 dark:border-zinc-800'}`}>İptal</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {/* Kelime Hedefi */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className={titleClass}>Okuma</span>
+                  <span className={mutedClass}>{todayWords} / {userGoals.dailyWords.toLocaleString()} Kelime (%{wordPercentage})</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
+                  <div className="h-full rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${wordPercentage}%` }} />
+                </div>
+              </div>
+
+              {/* Quiz Hedefi */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className={titleClass}>Quizler</span>
+                  <span className={mutedClass}>{todayQuizzesCount} / {userGoals.dailyQuizzes.toLocaleString()} Quiz (%{quizPercentage})</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
+                  <div className="h-full rounded-full bg-pink-500 transition-all duration-300" style={{ width: `${quizPercentage}%` }} />
+                </div>
+              </div>
+
+              {/* Bilgi Kartı Hedefi */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className={titleClass}>Bilgi Kartı</span>
+                  <span className={mutedClass}>{todayCardsCount} / {userGoals.dailyCards.toLocaleString()} Kart (%{cardPercentage})</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
+                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${cardPercentage}%` }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5 mt-2 text-amber-500 text-xs font-black border-t border-stone-100 dark:border-zinc-900/60 pt-3">
+            <Flame className="w-4 h-4 fill-amber-500" />
+            <span>{stats.dailyStreak || 0} Günlük Seri</span>
           </div>
         </div>
 
@@ -1400,12 +1569,211 @@ function ProgressPage({
 }: any) {
   // Subtab: 'reading' | 'quiz' | 'cards'
   const [progSubTab, setProgSubTab] = useState<'reading' | 'quiz' | 'cards'>('reading');
+  const [progressRange, setProgressRange] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('weekly');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  const computedChartData = useMemo(() => {
+    type HistoryItem = { date: string; wordCount: number; durationSeconds: number };
+    const history = stats.history || [];
+
+    const getWeekNumber = (date: Date) => {
+      const onejan = new Date(date.getFullYear(), 0, 1);
+      return Math.ceil((((date.getTime() - onejan.getTime()) / 86400000) + onejan.getDay() + 1) / 7);
+    };
+
+    if (progressRange === 'daily') {
+      const historyMap = new Map<string, HistoryItem>(history.map(item => [item.date, item]));
+      return Array.from({ length: 7 }, (_, index) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - index));
+        const key = date.toISOString().split('T')[0];
+        const item = historyMap.get(key);
+        return {
+          date: date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }),
+          words: item?.wordCount || 0,
+          minutes: Math.round((item?.durationSeconds || 0) / 60)
+        };
+      });
+    }
+
+    if (progressRange === 'weekly') {
+      const weeksMap = new Map<string, { words: number; seconds: number }>();
+      history.forEach(item => {
+        const date = new Date(item.date);
+        const year = date.getFullYear();
+        const week = getWeekNumber(date);
+        const key = `${year}-W${week}`;
+        const existing = weeksMap.get(key) || { words: 0, seconds: 0 };
+        weeksMap.set(key, {
+          words: existing.words + item.wordCount,
+          seconds: existing.seconds + item.durationSeconds
+        });
+      });
+
+      return Array.from({ length: 4 }, (_, index) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (3 - index) * 7);
+        const year = date.getFullYear();
+        const week = getWeekNumber(date);
+        const key = `${year}-W${week}`;
+        const val = weeksMap.get(key) || { words: 0, seconds: 0 };
+        return {
+          date: `${index + 1}. Hafta`,
+          words: val.words,
+          minutes: Math.round(val.seconds / 60)
+        };
+      });
+    }
+
+    if (progressRange === 'monthly') {
+      const monthsMap = new Map<string, { words: number; seconds: number }>();
+      history.forEach(item => {
+        const date = new Date(item.date);
+        const key = `${date.getFullYear()}-${date.getMonth()}`;
+        const existing = monthsMap.get(key) || { words: 0, seconds: 0 };
+        monthsMap.set(key, {
+          words: existing.words + item.wordCount,
+          seconds: existing.seconds + item.durationSeconds
+        });
+      });
+
+      return Array.from({ length: 6 }, (_, index) => {
+        const date = new Date();
+        date.setMonth(date.getMonth() - (5 - index));
+        const key = `${date.getFullYear()}-${date.getMonth()}`;
+        const val = monthsMap.get(key) || { words: 0, seconds: 0 };
+        return {
+          date: date.toLocaleDateString('tr-TR', { month: 'long' }),
+          words: val.words,
+          minutes: Math.round(val.seconds / 60)
+        };
+      });
+    }
+
+    if (progressRange === 'yearly') {
+      const yearsMap = new Map<number, { words: number; seconds: number }>();
+      history.forEach(item => {
+        const date = new Date(item.date);
+        const year = date.getFullYear();
+        const existing = yearsMap.get(year) || { words: 0, seconds: 0 };
+        yearsMap.set(year, {
+          words: existing.words + item.wordCount,
+          seconds: existing.seconds + item.durationSeconds
+        });
+      });
+
+      return Array.from({ length: 3 }, (_, index) => {
+        const date = new Date();
+        const year = date.getFullYear() - (2 - index);
+        const val = yearsMap.get(year) || { words: 0, seconds: 0 };
+        return {
+          date: String(year),
+          words: val.words,
+          minutes: Math.round(val.seconds / 60)
+        };
+      });
+    }
+
+    if (progressRange === 'custom') {
+      if (!customStartDate || !customEndDate) return [];
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      const daysCount = Math.min(60, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1);
+      const historyMap = new Map<string, HistoryItem>(history.map(item => [item.date, item]));
+      
+      return Array.from({ length: daysCount }, (_, index) => {
+        const date = new Date(start);
+        date.setDate(date.getDate() + index);
+        const key = date.toISOString().split('T')[0];
+        const item = historyMap.get(key);
+        return {
+          date: date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }),
+          words: item?.wordCount || 0,
+          minutes: Math.round((item?.durationSeconds || 0) / 60)
+        };
+      });
+    }
+
+    return [];
+  }, [stats.history, progressRange, customStartDate, customEndDate]);
+
+  const handleExportData = (format: 'json' | 'csv' | 'txt') => {
+    let content = '';
+    let mimeType = 'text/plain';
+    let filename = `velox_ilerleme_raporu.${format}`;
+
+    if (format === 'json') {
+      content = JSON.stringify(computedChartData, null, 2);
+      mimeType = 'application/json';
+    } else if (format === 'csv') {
+      content = 'Tarih,Okunan Kelime,Süre (Dakika)\n';
+      computedChartData.forEach(item => {
+        content += `"${item.date}",${item.words},${item.minutes}\n`;
+      });
+      mimeType = 'text/csv';
+    } else if (format === 'txt') {
+      content = `VELOX AKILLI OKUMA ASİSTANI - İLERLEME VE GELİŞİM RAPORU\n`;
+      content += `Oluşturulma Tarihi: ${new Date().toLocaleString('tr-TR')}\n`;
+      content += `Filtreleme Aralığı: ${progressRange.toUpperCase()}\n`;
+      content += `--------------------------------------------------\n\n`;
+      computedChartData.forEach(item => {
+        content += `- Dönem/Tarih: ${item.date}\n  Okunan Kelime: ${item.words.toLocaleString()} kelime\n  Okuma Süresi: ${item.minutes} dakika\n\n`;
+      });
+    }
+
+    const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const avgScore = quizHistory.length > 0
     ? Math.round(quizHistory.reduce((acc: number, curr: any) => acc + (curr.score || 0), 0) / quizHistory.length)
     : 0;
 
   const totalReviews = flashcards.reduce((acc: number, curr: any) => acc + (curr.reviewsCount || 0), 0);
+
+  const scoreDistribution = useMemo(() => {
+    let low = 0;
+    let mid = 0;
+    let high = 0;
+    quizHistory.forEach((h: any) => {
+      if (h.score < 60) low++;
+      else if (h.score < 80) mid++;
+      else high++;
+    });
+    return [
+      { range: 'Geliştirilmeli (0-59)', count: low },
+      { range: 'Başarılı (60-79)', count: mid },
+      { range: 'Mükemmel (80-100)', count: high }
+    ];
+  }, [quizHistory]);
+
+  const cardReviewDistribution = useMemo(() => {
+    let unreviewed = 0;
+    let low = 0;
+    let mid = 0;
+    let high = 0;
+    flashcards.forEach((c: any) => {
+      const count = c.reviewsCount || 0;
+      if (count === 0) unreviewed++;
+      else if (count <= 3) low++;
+      else if (count <= 7) mid++;
+      else high++;
+    });
+    return [
+      { status: 'Çalışılmadı (0)', count: unreviewed },
+      { status: 'Tanışma (1-3)', count: low },
+      { status: 'Pekiştirme (4-7)', count: mid },
+      { status: 'Uzman (8+)', count: high }
+    ];
+  }, [flashcards]);
 
   const handleGenerateReport = async (type: 'reading' | 'quiz' | 'cards') => {
     setReportLoading(type);
@@ -1520,10 +1888,74 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
 
             {/* Reading Chart */}
             <div className={`rounded-3xl border p-5 ${surfaceClass}`}>
-              <h3 className={`text-xs font-black mb-4 ${titleClass}`}>Okuma Trend Grafiği</h3>
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <h3 className={`text-xs font-black ${titleClass}`}>Okuma Trend Grafiği</h3>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
+                    {[
+                      { id: 'daily', label: 'Günlük' },
+                      { id: 'weekly', label: 'Haftalık' },
+                      { id: 'monthly', label: 'Aylık' },
+                      { id: 'yearly', label: 'Yıllık' },
+                      { id: 'custom', label: 'Özel' }
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setProgressRange(p.id as any)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                          progressRange === p.id
+                            ? 'bg-indigo-600 text-white shadow'
+                            : `${mutedClass} hover:text-indigo-500`
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative group">
+                    <button type="button" className="h-8 px-3 rounded-xl border border-stone-200 dark:border-zinc-850 bg-white dark:bg-zinc-950 text-[10px] font-black flex items-center gap-1.5 hover:bg-stone-50 dark:hover:bg-zinc-900">
+                      <Download className="w-3.5 h-3.5" /> Verileri Dışa Aktar
+                    </button>
+                    <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-20 min-w-[120px]">
+                      <button type="button" onClick={() => handleExportData('csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">CSV (Excel)</button>
+                      <button type="button" onClick={() => handleExportData('json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">JSON Verisi</button>
+                      <button type="button" onClick={() => handleExportData('txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">TXT Metni</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {progressRange === 'custom' && (
+                <div className="flex flex-wrap items-center gap-3 mb-4 bg-stone-50 dark:bg-zinc-900/20 p-3 rounded-2xl border border-stone-150 dark:border-zinc-900">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-stone-500">BAŞLANGIÇ</span>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className={`h-8 px-2 rounded-lg text-xs border ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950'}`}
+                      style={{ colorScheme: isLightTheme ? 'light' : 'dark' }}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-stone-500">BİTİŞ</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className={`h-8 px-2 rounded-lg text-xs border ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950'}`}
+                      style={{ colorScheme: isLightTheme ? 'light' : 'dark' }}
+                    />
+                  </label>
+                </div>
+              )}
+
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <LineChart data={computedChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={isLightTheme ? '#e7e5e4' : '#27272a'} />
                     <XAxis dataKey="date" tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -1585,18 +2017,18 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
 
             {/* Quiz performance bar chart */}
             <div className={`rounded-3xl border p-5 ${surfaceClass}`}>
-              <h3 className={`text-xs font-black mb-4 ${titleClass}`}>Sınav Başarı Geçmişi</h3>
+              <h3 className={`text-xs font-black mb-4 ${titleClass}`}>Sınav Başarı Dağılımı</h3>
               {quizHistory.length === 0 ? (
                 <p className="text-xs opacity-60 py-12 text-center">Geçmiş sınav kaydı bulunmuyor.</p>
               ) : (
                 <div className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={quizHistory.slice(-10)} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <BarChart data={scoreDistribution} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={isLightTheme ? '#e7e5e4' : '#27272a'} />
-                      <XAxis dataKey="bookTitle" tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 9 }} axisLine={false} tickLine={false} />
+                      <XAxis dataKey="range" tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 9 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={{ background: isLightTheme ? '#ffffff' : '#09090b', border: isLightTheme ? '1px solid #e7e5e4' : '1px solid #27272a', borderRadius: 12 }} />
-                      <Bar dataKey="score" name="Başarı Yüzdesi" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="count" name="Sınav Sayısı" fill="#ec4899" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1660,12 +2092,12 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
               ) : (
                 <div className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={flashcards.slice(-10)} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <BarChart data={cardReviewDistribution} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={isLightTheme ? '#e7e5e4' : '#27272a'} />
-                      <XAxis dataKey="front" tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 9 }} axisLine={false} tickLine={false} />
+                      <XAxis dataKey="status" tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 9 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={{ background: isLightTheme ? '#ffffff' : '#09090b', border: isLightTheme ? '1px solid #e7e5e4' : '1px solid #27272a', borderRadius: 12 }} />
-                      <Bar dataKey="reviewsCount" name="Tekrar Sayısı" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="count" name="Kart Sayısı" fill="#10b981" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -2330,20 +2762,48 @@ function SettingsPage({
   currentThemeType,
   currentTheme,
   aiStatus,
+  aiProvider,
+  setAiProvider,
   geminiDraftKey,
   setGeminiDraftKey,
+  openaiDraftKey,
+  setOpenaiDraftKey,
+  claudeDraftKey,
+  setClaudeDraftKey,
+  localUrlDraft,
+  setLocalUrlDraft,
+  localModelDraft,
+  setLocalModelDraft,
   aiSaveMessage,
   surfaceClass,
   softSurfaceClass,
   titleClass,
   mutedClass,
   onThemeChange,
-  onSaveApiKey,
-  onClearApiKey
+  onSaveAiSettings,
+  onClearAiSettings
 }: any) {
+  const [selectedProvider, setSelectedProvider] = useState(aiProvider);
+
+  const handleSave = () => {
+    onSaveAiSettings(
+      selectedProvider,
+      geminiDraftKey,
+      openaiDraftKey,
+      claudeDraftKey,
+      localUrlDraft,
+      localModelDraft
+    );
+  };
+
+  const handleClear = () => {
+    onClearAiSettings();
+    setSelectedProvider('gemini');
+  };
+
   return (
     <section className="flex flex-col gap-5">
-      <PageHeader title="Ayarlar ve Destek" description="Görünüm, yapay zeka anahtarı, rehber ve uygulama bilgileri tek ekranda." titleClass={titleClass} mutedClass={mutedClass} />
+      <PageHeader title="Ayarlar ve Destek" description="Görünüm, yapay zeka sağlayıcısı ve uygulama bilgileri tek ekranda." titleClass={titleClass} mutedClass={mutedClass} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5">
         <aside className={`rounded-2xl border p-3 ${surfaceClass}`}>
@@ -2368,26 +2828,111 @@ function SettingsPage({
           {settingsTab === 'ai' && (
             <div className="flex flex-col gap-5">
               <div>
-                <h2 className={`text-lg font-black ${titleClass}`}>Gemini API Key</h2>
-                <p className={`text-sm mt-1 ${mutedClass}`}>API key yoksa Velox okuma, not ve ilerleme özellikleriyle çalışmaya devam eder.</p>
+                <h2 className={`text-lg font-black ${titleClass}`}>Yapay Zeka Sağlayıcısı</h2>
+                <p className={`text-sm mt-1 ${mutedClass}`}>Metin analizi, kelime sözlüğü ve kavrama testleri için kullanmak istediğiniz yapay zekayı seçin.</p>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-end">
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs font-bold">API Key</span>
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    value={geminiDraftKey}
-                    onChange={(event) => setGeminiDraftKey(event.target.value)}
-                    placeholder="Gemini API anahtarınızı girin"
-                    className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
-                  />
-                </label>
-                <button onClick={onSaveApiKey} className="h-12 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black">Kaydet</button>
-                <button onClick={onClearApiKey} className="h-12 px-5 rounded-xl border border-stone-200 dark:border-zinc-800 text-xs font-black">Anahtarı Sil</button>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'gemini', label: 'Google Gemini' },
+                  { id: 'openai', label: 'OpenAI ChatGPT' },
+                  { id: 'claude', label: 'Anthropic Claude' },
+                  { id: 'local', label: 'Lokal Model (Ollama)' }
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedProvider(p.id)}
+                    className={`h-11 rounded-xl text-xs font-black border transition-colors ${selectedProvider === p.id ? 'bg-indigo-600 text-white border-indigo-600' : 'border-stone-200 dark:border-zinc-800 hover:bg-stone-100 dark:hover:bg-zinc-900'}`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
+
+              <hr className="border-stone-100 dark:border-zinc-900" />
+
+              {selectedProvider === 'gemini' && (
+                <div className="flex flex-col gap-3">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-bold">Gemini API Key</span>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={geminiDraftKey}
+                      onChange={(event) => setGeminiDraftKey(event.target.value)}
+                      placeholder="Gemini API anahtarınızı girin"
+                      className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {selectedProvider === 'openai' && (
+                <div className="flex flex-col gap-3">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-bold">OpenAI API Key</span>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={openaiDraftKey}
+                      onChange={(event) => setOpenaiDraftKey(event.target.value)}
+                      placeholder="OpenAI API anahtarınızı girin"
+                      className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {selectedProvider === 'claude' && (
+                <div className="flex flex-col gap-3">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-bold">Anthropic Claude API Key</span>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={claudeDraftKey}
+                      onChange={(event) => setClaudeDraftKey(event.target.value)}
+                      placeholder="Claude API anahtarınızı girin"
+                      className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {selectedProvider === 'local' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-bold">Lokal API Bağlantı Adresi (URL)</span>
+                    <input
+                      type="text"
+                      value={localUrlDraft}
+                      onChange={(event) => setLocalUrlDraft(event.target.value)}
+                      placeholder="http://localhost:11434"
+                      className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-bold">Model Adı</span>
+                    <input
+                      type="text"
+                      value={localModelDraft}
+                      onChange={(event) => setLocalModelDraft(event.target.value)}
+                      placeholder="llama3 veya gemma2"
+                      className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button onClick={handleSave} className="h-12 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black">Kaydet</button>
+                <button onClick={handleClear} className="h-12 px-5 rounded-xl border border-stone-200 dark:border-zinc-800 text-xs font-black">Ayarları Sıfırla</button>
+              </div>
+
               <div className={`rounded-2xl border p-4 ${softSurfaceClass}`}>
-                <p className={`text-xs font-black ${aiStatus.enabled ? 'text-emerald-500' : mutedClass}`}>Yapay Zeka {aiStatus.enabled ? 'Aktif' : 'Pasif'}</p>
+                <p className={`text-xs font-black ${aiStatus.enabled ? 'text-emerald-500' : mutedClass}`}>
+                  Yapay Zeka {aiStatus.enabled ? `Aktif (${aiStatus.provider?.toUpperCase()})` : 'Pasif'}
+                </p>
                 <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>{aiSaveMessage || 'Yapay zeka özellikleri belge detayı içindeki Yapay Zeka Analizi ve Yapay Zeka Soru & Aksiyon sekmelerinde çalışır.'}</p>
               </div>
             </div>
@@ -3539,7 +4084,8 @@ function RecallQuizPage({
     updated[cardIndex] = { 
       ...updated[cardIndex], 
       status: newStatus,
-      reviewsCount: (updated[cardIndex].reviewsCount || 0) + 1
+      reviewsCount: (updated[cardIndex].reviewsCount || 0) + 1,
+      lastReviewed: new Date().toLocaleDateString('tr-TR')
     };
     saveFlashcards(updated);
 
