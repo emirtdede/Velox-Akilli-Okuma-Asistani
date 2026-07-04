@@ -24,14 +24,14 @@ function startServer() {
     serverProcess = spawn('npx', ['tsx', 'server.ts'], {
       cwd: __dirname,
       shell: true,
-      env: { ...env, NODE_ENV: 'development' }
+      env: { ...env, NODE_ENV: 'development', IS_ELECTRON: 'true' }
     });
   } else {
     console.log('Starting server in production mode...');
     serverProcess = spawn('node', [path.join(__dirname, 'dist/server.cjs')], {
       cwd: __dirname,
       shell: true,
-      env: { ...env, NODE_ENV: 'production' }
+      env: { ...env, NODE_ENV: 'production', IS_ELECTRON: 'true' }
     });
   }
 
@@ -80,6 +80,10 @@ function createWindow() {
   mainWindow.loadURL('data:text/html,<html><body style="background:#1e1e2e;color:#cdd6f4;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;"><div><h2>Velox Yükleniyor...</h2></div></body></html>');
 
   startServer();
+
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools();
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;

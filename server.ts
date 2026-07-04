@@ -618,25 +618,27 @@ ${text.slice(0, 4000)}`,
     console.log(`[Velox] Server listening on http://0.0.0.0:${PORT}`);
     
     // Automatically open in app mode when starting
-    const url = `http://localhost:${PORT}`;
-    if (process.platform === 'win32') {
-      exec(`start msedge --app=${url}`, (err) => {
-        if (err) {
-          exec(`start chrome --app=${url}`, (err2) => {
-            if (err2) {
-              exec(`start ${url}`);
-            }
-          });
-        }
-      });
-    } else if (process.platform === 'darwin') {
-      exec(`open -a "Google Chrome" --args --app=${url}`, (err) => {
-        if (err) {
-          exec(`open ${url}`);
-        }
-      });
-    } else {
-      exec(`xdg-open ${url}`);
+    if (!process.env.IS_ELECTRON) {
+      const url = `http://localhost:${PORT}`;
+      if (process.platform === 'win32') {
+        exec(`start msedge --app=${url}`, (err) => {
+          if (err) {
+            exec(`start chrome --app=${url}`, (err2) => {
+              if (err2) {
+                exec(`start ${url}`);
+              }
+            });
+          }
+        });
+      } else if (process.platform === 'darwin') {
+        exec(`open -a "Google Chrome" --args --app=${url}`, (err) => {
+          if (err) {
+            exec(`open ${url}`);
+          }
+        });
+      } else {
+        exec(`xdg-open ${url}`);
+      }
     }
   });
 }
