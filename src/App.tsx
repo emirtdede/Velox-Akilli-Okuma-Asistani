@@ -905,9 +905,9 @@ function Sidebar({
                 type="button"
                 onClick={() => isCompact && onSetMode('full')}
                 title={isCompact ? 'Menüyü genişlet' : APP_NAME}
-                className={`${isCompact ? 'cursor-pointer group/brand' : 'cursor-default'} relative h-11 w-11 rounded-2xl grid place-items-center bg-stone-100 dark:bg-zinc-900/30 shadow-md border border-stone-200 dark:border-zinc-850 shrink-0 overflow-hidden p-2`}
+                className={`${isCompact ? 'cursor-pointer group/brand' : 'cursor-default'} relative h-11 w-11 grid place-items-center bg-transparent shrink-0 overflow-hidden`}
               >
-                <img src="/velox-icon.svg" alt="Velox" className={`${isCompact ? 'group-hover/brand:opacity-0' : ''} w-7 h-7 object-contain transition-opacity`} />
+                <img src="/velox-icon.svg" alt="Velox" className={`${isCompact ? 'group-hover/brand:opacity-0' : ''} w-10 h-10 object-contain transition-opacity`} />
                 {isCompact && <ChevronsRight className="absolute w-5 h-5 opacity-0 group-hover/brand:opacity-100 transition-opacity text-indigo-500" />}
               </button>
               <div className={`${labelClass} transition-all duration-200 min-w-0 overflow-hidden`}>
@@ -2547,9 +2547,7 @@ function AboutPage({
     <section className="flex flex-col items-center justify-center py-6 px-4 max-w-3xl mx-auto w-full">
       {/* App Logo & Name */}
       <div className="flex flex-col items-center text-center gap-3">
-        <div className="h-24 w-24 rounded-3xl bg-stone-100 dark:bg-zinc-900/30 border border-stone-200 dark:border-zinc-850 shadow-xl grid place-items-center p-4">
-          <img src="/velox-icon.svg" alt="Velox Logo" className="w-16 h-16 object-contain" />
-        </div>
+        <img src="/velox-icon.svg" alt="Velox Logo" className="w-36 h-36 object-contain" />
         <h2 className={`text-3xl font-black tracking-tight mt-2 ${titleClass}`}>Velox</h2>
         <p className={`text-xs font-mono opacity-60`}>v{APP_VERSION}</p>
         <p className={`text-sm mt-2 max-w-md leading-relaxed ${mutedClass}`}>
