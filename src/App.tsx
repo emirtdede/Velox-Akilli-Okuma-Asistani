@@ -65,7 +65,12 @@ import {
   Layers,
   Bookmark,
   FileQuestion,
-  ListPlus, Edit
+  ListPlus, Edit,
+  Database,
+  Keyboard,
+  FileDown,
+  UploadCloud,
+  RefreshCw
 } from 'lucide-react';
 
 const AddDocumentModal = lazy(() => import('./components/AddDocumentModal'));
@@ -85,7 +90,7 @@ const LazyPanelFallback = () => <div className="p-4 text-xs opacity-60">Yükleni
 
 type AppTab = 'home' | 'progress' | 'workspace' | 'quiz' | 'guide' | 'settings' | 'about' | 'reader';
 type WorkspaceTab = 'content' | 'notes' | 'analysis' | 'actions';
-type SettingsTab = 'appearance' | 'ai';
+type SettingsTab = 'appearance' | 'ai' | 'data' | 'shortcuts';
 type BookFilter = 'all' | 'active' | 'completed';
 type SidebarMode = 'full' | 'compact' | 'hidden';
 
@@ -111,7 +116,9 @@ const WORKSPACE_TABS = [
 
 const SETTINGS_TABS = [
   { id: 'appearance' as SettingsTab, label: 'Görünüm', icon: Palette },
-  { id: 'ai' as SettingsTab, label: 'Yapay Zeka', icon: KeyRound }
+  { id: 'ai' as SettingsTab, label: 'Yapay Zeka', icon: KeyRound },
+  { id: 'shortcuts' as SettingsTab, label: 'Klavye Kısayolları', icon: Keyboard },
+  { id: 'data' as SettingsTab, label: 'Veri Yönetimi', icon: Database }
 ];
 
 function parseRoute(pathname = typeof window !== 'undefined' ? window.location.pathname : '/'): { tab: AppTab; bookId: string | null; readerBookId: string | null; settingsTab?: SettingsTab } {
@@ -167,6 +174,20 @@ function pathForTab(tab: AppTab, bookId?: string | null) {
 
 function formatShortDate(date: Date) {
   return date.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
+}
+
+function parseCustomDate(dateStr: string): Date {
+  if (!dateStr) return new Date(0);
+  if (dateStr.includes('-')) {
+    return new Date(dateStr);
+  }
+  if (dateStr.includes('.')) {
+    const parts = dateStr.split(' ')[0].split('.');
+    if (parts.length === 3) {
+      return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    }
+  }
+  return new Date(dateStr);
 }
 
 function readLocalWithLegacy(key: string, legacyKey: string) {
@@ -1687,6 +1708,8 @@ function ProgressPage({
   // Subtab: 'reading' | 'quiz' | 'cards'
   const [progSubTab, setProgSubTab] = useState<'reading' | 'quiz' | 'cards'>('reading');
   const [progressRange, setProgressRange] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('weekly');
+  const [quizProgressRange, setQuizProgressRange] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('weekly');
+  const [cardProgressRange, setCardProgressRange] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('weekly');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
@@ -1815,28 +1838,117 @@ function ProgressPage({
     return [];
   }, [stats.history, progressRange, customStartDate, customEndDate]);
 
-  const handleExportData = (format: 'json' | 'csv' | 'txt') => {
+  const filteredQuizHistory = useMemo(() => {
+    if (quizProgressRange === 'custom' && (!customStartDate || !customEndDate)) return quizHistory;
+    const cutoff = new Date();
+    if (quizProgressRange === 'daily') cutoff.setDate(cutoff.getDate() - 7);
+    else if (quizProgressRange === 'weekly') cutoff.setDate(cutoff.getDate() - 28);
+    else if (quizProgressRange === 'monthly') cutoff.setMonth(cutoff.getMonth() - 6);
+    else if (quizProgressRange === 'yearly') cutoff.setFullYear(cutoff.getFullYear() - 3);
+    cutoff.setHours(0, 0, 0, 0);
+
+    return quizHistory.filter((q: any) => {
+      const qDate = parseCustomDate(q.date);
+      if (quizProgressRange === 'custom') {
+        const start = new Date(customStartDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(customEndDate);
+        end.setHours(23, 59, 59, 999);
+        return qDate >= start && qDate <= end;
+      }
+      return qDate >= cutoff;
+    });
+  }, [quizHistory, quizProgressRange, customStartDate, customEndDate]);
+
+  const filteredFlashcards = useMemo(() => {
+    if (cardProgressRange === 'custom' && (!customStartDate || !customEndDate)) return flashcards;
+    const cutoff = new Date();
+    if (cardProgressRange === 'daily') cutoff.setDate(cutoff.getDate() - 7);
+    else if (cardProgressRange === 'weekly') cutoff.setDate(cutoff.getDate() - 28);
+    else if (cardProgressRange === 'monthly') cutoff.setMonth(cutoff.getMonth() - 6);
+    else if (cardProgressRange === 'yearly') cutoff.setFullYear(cutoff.getFullYear() - 3);
+    cutoff.setHours(0, 0, 0, 0);
+
+    return flashcards.filter((c: any) => {
+      if (!c.lastReviewed) return false;
+      const rDate = parseCustomDate(c.lastReviewed);
+      if (cardProgressRange === 'custom') {
+        const start = new Date(customStartDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(customEndDate);
+        end.setHours(23, 59, 59, 999);
+        return rDate >= start && rDate <= end;
+      }
+      return rDate >= cutoff;
+    });
+  }, [flashcards, cardProgressRange, customStartDate, customEndDate]);
+
+  const handleExportData = (type: 'reading' | 'quiz' | 'cards', format: 'json' | 'csv' | 'txt') => {
     let content = '';
     let mimeType = 'text/plain';
-    let filename = `velox_ilerleme_raporu.${format}`;
+    let filename = `velox_${type}_raporu.${format}`;
 
-    if (format === 'json') {
-      content = JSON.stringify(computedChartData, null, 2);
-      mimeType = 'application/json';
-    } else if (format === 'csv') {
-      content = 'Tarih,Okunan Kelime,Süre (Dakika)\n';
-      computedChartData.forEach(item => {
-        content += `"${item.date}",${item.words},${item.minutes}\n`;
-      });
-      mimeType = 'text/csv';
-    } else if (format === 'txt') {
-      content = `VELOX AKILLI OKUMA ASİSTANI - İLERLEME VE GELİŞİM RAPORU\n`;
-      content += `Oluşturulma Tarihi: ${new Date().toLocaleString('tr-TR')}\n`;
-      content += `Filtreleme Aralığı: ${progressRange.toUpperCase()}\n`;
-      content += `--------------------------------------------------\n\n`;
-      computedChartData.forEach(item => {
-        content += `- Dönem/Tarih: ${item.date}\n  Okunan Kelime: ${item.words.toLocaleString()} kelime\n  Okuma Süresi: ${item.minutes} dakika\n\n`;
-      });
+    if (type === 'reading') {
+      if (format === 'json') {
+        content = JSON.stringify(computedChartData, null, 2);
+        mimeType = 'application/json';
+      } else if (format === 'csv') {
+        content = 'Tarih,Okunan Kelime,Süre (Dakika)\n';
+        computedChartData.forEach(item => {
+          content += `"${item.date}",${item.words},${item.minutes}\n`;
+        });
+        mimeType = 'text/csv';
+      } else if (format === 'txt') {
+        content = `VELOX AKILLI OKUMA ASİSTANI - OKUMA ANALİZİ VE İLERLEME RAPORU\n`;
+        content += `Oluşturulma Tarihi: ${new Date().toLocaleString('tr-TR')}\n`;
+        content += `Filtreleme Aralığı: ${progressRange.toUpperCase()}\n`;
+        content += `--------------------------------------------------\n\n`;
+        computedChartData.forEach(item => {
+          content += `- Dönem/Tarih: ${item.date}\n  Okunan Kelime: ${item.words.toLocaleString()} kelime\n  Okuma Süresi: ${item.minutes} dakika\n\n`;
+        });
+      }
+    } else if (type === 'quiz') {
+      if (format === 'json') {
+        content = JSON.stringify(filteredQuizHistory, null, 2);
+        mimeType = 'application/json';
+      } else if (format === 'csv') {
+        content = 'Tarih,Sınav Başlığı,Skor\n';
+        filteredQuizHistory.forEach((item: any) => {
+          content += `"${item.date}","${item.title || ''}",${item.score}\n`;
+        });
+        mimeType = 'text/csv';
+      } else if (format === 'txt') {
+        content = `VELOX AKILLI OKUMA ASİSTANI - QUİZ BAŞARI ANALİZ RAPORU\n`;
+        content += `Oluşturulma Tarihi: ${new Date().toLocaleString('tr-TR')}\n`;
+        content += `Filtreleme Aralığı: ${quizProgressRange.toUpperCase()}\n`;
+        content += `Toplam Çözülen Sınav: ${filteredQuizHistory.length}\n`;
+        content += `Ortalama Başarı Skoru: %${avgScore}\n`;
+        content += `--------------------------------------------------\n\n`;
+        filteredQuizHistory.forEach((item: any) => {
+          content += `- Tarih: ${item.date}\n  Sınav: ${item.title || 'Genel Test'}\n  Başarı Skoru: %${item.score}\n\n`;
+        });
+      }
+    } else if (type === 'cards') {
+      if (format === 'json') {
+        content = JSON.stringify(filteredFlashcards, null, 2);
+        mimeType = 'application/json';
+      } else if (format === 'csv') {
+        content = 'Soru/Kavram,Cevap,Kutu,Tekrar Sayısı,Son İnceleme\n';
+        filteredFlashcards.forEach((item: any) => {
+          content += `"${item.front}","${item.back}",${item.box || 1},${item.reviewsCount || 0},"${item.lastReviewed || ''}"\n`;
+        });
+        mimeType = 'text/csv';
+      } else if (format === 'txt') {
+        content = `VELOX AKILLI OKUMA ASİSTANI - BİLGİ KARTLARI BELLEK ANALİZ RAPORU\n`;
+        content += `Oluşturulma Tarihi: ${new Date().toLocaleString('tr-TR')}\n`;
+        content += `Filtreleme Aralığı: ${cardProgressRange.toUpperCase()}\n`;
+        content += `Toplam Aktif Kart: ${filteredFlashcards.length}\n`;
+        content += `Toplam Tekrar Seansı: ${totalReviews}\n`;
+        content += `--------------------------------------------------\n\n`;
+        filteredFlashcards.forEach((item: any) => {
+          content += `- Kavram/Soru: ${item.front}\n  Açıklama/Cevap: ${item.back}\n  Leitner Kutusu: Kutu ${item.box || 1}\n  Yapılan Tekrar: ${item.reviewsCount || 0} kez\n  Son İnceleme: ${item.lastReviewed || 'Hiç yapılmadı'}\n\n`;
+        });
+      }
     }
 
     const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
@@ -1850,17 +1962,17 @@ function ProgressPage({
     URL.revokeObjectURL(url);
   };
 
-  const avgScore = quizHistory.length > 0
-    ? Math.round(quizHistory.reduce((acc: number, curr: any) => acc + (curr.score || 0), 0) / quizHistory.length)
+  const avgScore = filteredQuizHistory.length > 0
+    ? Math.round(filteredQuizHistory.reduce((acc: number, curr: any) => acc + (curr.score || 0), 0) / filteredQuizHistory.length)
     : 0;
 
-  const totalReviews = flashcards.reduce((acc: number, curr: any) => acc + (curr.reviewsCount || 0), 0);
+  const totalReviews = filteredFlashcards.reduce((acc: number, curr: any) => acc + (curr.reviewsCount || 0), 0);
 
   const scoreDistribution = useMemo(() => {
     let low = 0;
     let mid = 0;
     let high = 0;
-    quizHistory.forEach((h: any) => {
+    filteredQuizHistory.forEach((h: any) => {
       if (h.score < 60) low++;
       else if (h.score < 80) mid++;
       else high++;
@@ -1870,14 +1982,14 @@ function ProgressPage({
       { range: 'Başarılı (60-79)', count: mid },
       { range: 'Mükemmel (80-100)', count: high }
     ];
-  }, [quizHistory]);
+  }, [filteredQuizHistory]);
 
   const cardReviewDistribution = useMemo(() => {
     let unreviewed = 0;
     let low = 0;
     let mid = 0;
     let high = 0;
-    flashcards.forEach((c: any) => {
+    filteredFlashcards.forEach((c: any) => {
       const count = c.reviewsCount || 0;
       if (count === 0) unreviewed++;
       else if (count <= 3) low++;
@@ -1890,7 +2002,7 @@ function ProgressPage({
       { status: 'Pekiştirme (4-7)', count: mid },
       { status: 'Uzman (8+)', count: high }
     ];
-  }, [flashcards]);
+  }, [filteredFlashcards]);
 
   const handleGenerateReport = async (type: 'reading' | 'quiz' | 'cards') => {
     setReportLoading(type);
@@ -2037,9 +2149,9 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
                       <Download className="w-3.5 h-3.5" /> Verileri Dışa Aktar
                     </button>
                     <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-20 min-w-[120px]">
-                      <button type="button" onClick={() => handleExportData('csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">CSV (Excel)</button>
-                      <button type="button" onClick={() => handleExportData('json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">JSON Verisi</button>
-                      <button type="button" onClick={() => handleExportData('txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">TXT Metni</button>
+                      <button type="button" onClick={() => handleExportData('reading', 'csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">CSV (Excel)</button>
+                      <button type="button" onClick={() => handleExportData('reading', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">JSON Verisi</button>
+                      <button type="button" onClick={() => handleExportData('reading', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">TXT Metni</button>
                     </div>
                   </div>
                 </div>
@@ -2120,7 +2232,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
                 <span className={`text-[9px] font-black text-indigo-500 uppercase`}>ÇÖZÜLEN SINAV</span>
-                <span className="text-xl font-black mt-1 text-current">{quizHistory.length} sınav</span>
+                <span className="text-xl font-black mt-1 text-current">{filteredQuizHistory.length} sınav</span>
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
                 <span className={`text-[9px] font-black text-indigo-500 uppercase`}>ORTALAMA BAŞARI</span>
@@ -2128,15 +2240,79 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
                 <span className={`text-[9px] font-black text-indigo-500 uppercase`}>BAŞARI SERİSİ</span>
-                <span className="text-xl font-black mt-1 text-current">{quizHistory.filter((h: any) => h.score >= 80).length} sınav (%80+)</span>
+                <span className="text-xl font-black mt-1 text-current">{filteredQuizHistory.filter((h: any) => h.score >= 80).length} sınav (%80+)</span>
               </div>
             </div>
 
             {/* Quiz performance bar chart */}
             <div className={`rounded-3xl border p-5 ${surfaceClass}`}>
-              <h3 className={`text-xs font-black mb-4 ${titleClass}`}>Sınav Başarı Dağılımı</h3>
-              {quizHistory.length === 0 ? (
-                <p className="text-xs opacity-60 py-12 text-center">Geçmiş sınav kaydı bulunmuyor.</p>
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <h3 className={`text-xs font-black ${titleClass}`}>Sınav Başarı Dağılımı</h3>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
+                    {[
+                      { id: 'daily', label: 'Günlük' },
+                      { id: 'weekly', label: 'Haftalık' },
+                      { id: 'monthly', label: 'Aylık' },
+                      { id: 'yearly', label: 'Yıllık' },
+                      { id: 'custom', label: 'Özel' }
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setQuizProgressRange(p.id as any)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                          quizProgressRange === p.id
+                            ? 'bg-indigo-600 text-white shadow'
+                            : `${mutedClass} hover:text-indigo-500`
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative group">
+                    <button type="button" className="h-8 px-3 rounded-xl border border-stone-200 dark:border-zinc-850 bg-white dark:bg-zinc-950 text-[10px] font-black flex items-center gap-1.5 hover:bg-stone-50 dark:hover:bg-zinc-900">
+                      <Download className="w-3.5 h-3.5" /> Verileri Dışa Aktar
+                    </button>
+                    <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-20 min-w-[120px]">
+                      <button type="button" onClick={() => handleExportData('quiz', 'csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">CSV (Excel)</button>
+                      <button type="button" onClick={() => handleExportData('quiz', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">JSON Verisi</button>
+                      <button type="button" onClick={() => handleExportData('quiz', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">TXT Metni</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {quizProgressRange === 'custom' && (
+                <div className="flex flex-wrap items-center gap-3 mb-4 bg-stone-50 dark:bg-zinc-900/20 p-3 rounded-2xl border border-stone-150 dark:border-zinc-900">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-stone-500">BAŞLANGIÇ</span>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className={`h-8 px-2 rounded-lg text-xs border ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950'}`}
+                      style={{ colorScheme: isLightTheme ? 'light' : 'dark' }}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-stone-500">BİTİŞ</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className={`h-8 px-2 rounded-lg text-xs border ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950'}`}
+                      style={{ colorScheme: isLightTheme ? 'light' : 'dark' }}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {filteredQuizHistory.length === 0 ? (
+                <p className="text-xs opacity-60 py-12 text-center">Belirtilen aralıkta geçmiş sınav kaydı bulunmuyor.</p>
               ) : (
                 <div className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -2189,7 +2365,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
                 <span className={`text-[9px] font-black text-indigo-500 uppercase`}>TOPLAM KART</span>
-                <span className="text-xl font-black mt-1 text-current">{flashcards.length} kart</span>
+                <span className="text-xl font-black mt-1 text-current">{filteredFlashcards.length} kart</span>
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
                 <span className={`text-[9px] font-black text-indigo-500 uppercase`}>TOPLAM TEKRAR</span>
@@ -2197,15 +2373,79 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
                 <span className={`text-[9px] font-black text-indigo-500 uppercase`}>PEKİŞTİRİLEN KAVRAM</span>
-                <span className="text-xl font-black mt-1 text-current">{flashcards.filter((c: any) => (c.reviewsCount || 0) > 3).length} kart (3+ Tekrar)</span>
+                <span className="text-xl font-black mt-1 text-current">{filteredFlashcards.filter((c: any) => (c.reviewsCount || 0) > 3).length} kart (3+ Tekrar)</span>
               </div>
             </div>
 
             {/* Flashcard repetition breakdown chart */}
             <div className={`rounded-3xl border p-5 ${surfaceClass}`}>
-              <h3 className={`text-xs font-black mb-4 ${titleClass}`}>Bilgi Kartı Tekrar Dağılımı</h3>
-              {flashcards.length === 0 ? (
-                <p className="text-xs opacity-60 py-12 text-center">Kayıtlı bilgi kartı bulunmuyor.</p>
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <h3 className={`text-xs font-black ${titleClass}`}>Bilgi Kartı Tekrar Dağılımı</h3>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
+                    {[
+                      { id: 'daily', label: 'Günlük' },
+                      { id: 'weekly', label: 'Haftalık' },
+                      { id: 'monthly', label: 'Aylık' },
+                      { id: 'yearly', label: 'Yıllık' },
+                      { id: 'custom', label: 'Özel' }
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setCardProgressRange(p.id as any)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                          cardProgressRange === p.id
+                            ? 'bg-indigo-600 text-white shadow'
+                            : `${mutedClass} hover:text-indigo-500`
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative group">
+                    <button type="button" className="h-8 px-3 rounded-xl border border-stone-200 dark:border-zinc-850 bg-white dark:bg-zinc-950 text-[10px] font-black flex items-center gap-1.5 hover:bg-stone-50 dark:hover:bg-zinc-900">
+                      <Download className="w-3.5 h-3.5" /> Verileri Dışa Aktar
+                    </button>
+                    <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-20 min-w-[120px]">
+                      <button type="button" onClick={() => handleExportData('cards', 'csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">CSV (Excel)</button>
+                      <button type="button" onClick={() => handleExportData('cards', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">JSON Verisi</button>
+                      <button type="button" onClick={() => handleExportData('cards', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">TXT Metni</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {cardProgressRange === 'custom' && (
+                <div className="flex flex-wrap items-center gap-3 mb-4 bg-stone-50 dark:bg-zinc-900/20 p-3 rounded-2xl border border-stone-150 dark:border-zinc-900">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-stone-500">BAŞLANGIÇ</span>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className={`h-8 px-2 rounded-lg text-xs border ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950'}`}
+                      style={{ colorScheme: isLightTheme ? 'light' : 'dark' }}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-stone-500">BİTİŞ</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className={`h-8 px-2 rounded-lg text-xs border ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950'}`}
+                      style={{ colorScheme: isLightTheme ? 'light' : 'dark' }}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {filteredFlashcards.length === 0 ? (
+                <p className="text-xs opacity-60 py-12 text-center">Belirtilen aralıkta kayıtlı bilgi kartı bulunmuyor.</p>
               ) : (
                 <div className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -2901,6 +3141,48 @@ function SettingsPage({
   onClearAiSettings
 }: any) {
   const [selectedProvider, setSelectedProvider] = useState(aiProvider);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [optDays, setOptDays] = useState(30);
+
+  const [shortcuts, setShortcuts] = useState(() => {
+    try {
+      const stored = localStorage.getItem('velox_shortcuts');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return {
+      playPause: 'Space',
+      back10: 'ArrowLeft',
+      forward10: 'ArrowRight',
+      speedUp: 'ArrowUp',
+      speedDown: 'ArrowDown',
+      exit: 'Escape'
+    };
+  });
+
+  const [recordingKey, setRecordingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!recordingKey) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      const newCode = e.code;
+      const next = { ...shortcuts, [recordingKey]: newCode };
+      setShortcuts(next);
+      localStorage.setItem('velox_shortcuts', JSON.stringify(next));
+      setRecordingKey(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [recordingKey, shortcuts]);
+
+  const SHORTCUT_LABELS: Record<string, string> = {
+    playPause: 'Oynat / Duraklat',
+    back10: '10 Kelime Geri Git',
+    forward10: '10 Kelime İleri Git',
+    speedUp: 'Hız Artır (WPM)',
+    speedDown: 'Hız Azalt (WPM)',
+    exit: 'Okuyucudan Çık (ESC)'
+  };
 
   const handleSave = () => {
     onSaveAiSettings(
@@ -2918,10 +3200,124 @@ function SettingsPage({
     setSelectedProvider('gemini');
   };
 
+  const handleBackup = () => {
+    const backup: Record<string, string> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('velox_') || key.startsWith('readflow_'))) {
+        backup[key] = localStorage.getItem(key) || '';
+      }
+    }
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `velox_yedek_${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        if (typeof data !== 'object' || data === null) {
+          alert('Geçersiz yedek dosyası.');
+          return;
+        }
+        const keys = Object.keys(data);
+        const hasVeloxKey = keys.some(k => k.startsWith('velox_') || k.startsWith('readflow_'));
+        if (!hasVeloxKey) {
+          alert('Geçersiz yedek dosyası (Uyumlu Velox verisi bulunamadı).');
+          return;
+        }
+
+        keys.forEach(k => {
+          localStorage.setItem(k, data[k]);
+        });
+
+        alert('Yedek başarıyla yüklendi! Uygulama şimdi yenilenecek.');
+        window.location.reload();
+      } catch (err) {
+        alert('Yedek yüklenirken hata oluştu: ' + (err as Error).message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleResetAll = () => {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('velox_') || key.startsWith('readflow_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    alert('Tüm veriler sıfırlandı. Uygulama şimdi ilk haline dönecek.');
+    window.location.reload();
+  };
+
+  const handleOptimizeData = () => {
+    if (optDays < 1) {
+      alert('Lütfen geçerli bir gün sayısı girin.');
+      return;
+    }
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - optDays);
+    cutoff.setHours(0, 0, 0, 0);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+
+    let cleanedHistoryCount = 0;
+    let cleanedQuizzesCount = 0;
+
+    // 1. Clean Reading History (stats.history)
+    let stats: any = {};
+    try {
+      const storedStats = localStorage.getItem('velox_stats');
+      if (storedStats) {
+        stats = JSON.parse(storedStats);
+        if (stats.history) {
+          const originalLen = stats.history.length;
+          stats.history = stats.history.filter((h: any) => h.date >= cutoffStr);
+          cleanedHistoryCount = originalLen - stats.history.length;
+          localStorage.setItem('velox_stats', JSON.stringify(stats));
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 2. Clean Quiz History
+    try {
+      const storedQuizHistory = localStorage.getItem('velox_quiz_history');
+      if (storedQuizHistory) {
+        const quizHistory = JSON.parse(storedQuizHistory);
+        const originalLen = quizHistory.length;
+        const updated = quizHistory.filter((q: any) => {
+          const qDate = parseCustomDate(q.date);
+          return qDate >= cutoff;
+        });
+        cleanedQuizzesCount = originalLen - updated.length;
+        localStorage.setItem('velox_quiz_history', JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    alert(`Optimizasyon tamamlandı!\n- ${cleanedHistoryCount} eski okuma günlüğü silindi.\n- ${cleanedQuizzesCount} eski sınav sonucu temizlendi.\nUygulama şimdi yenilenecek.`);
+    window.location.reload();
+  };
+
+  const isResetEnabled = resetConfirmText.toLowerCase() === 'sil';
+
   return (
     <section className="flex flex-col gap-5">
       <PageHeader title="Ayarlar ve Destek" description="Görünüm, yapay zeka sağlayıcısı ve uygulama bilgileri tek ekranda." titleClass={titleClass} mutedClass={mutedClass} />
-
+ 
       <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5">
         <aside className={`rounded-2xl border p-3 ${surfaceClass}`}>
           <div className="flex flex-col gap-1">
@@ -2936,19 +3332,19 @@ function SettingsPage({
             ))}
           </div>
         </aside>
-
+ 
         <div className={`rounded-2xl border p-5 ${surfaceClass}`}>
           {settingsTab === 'appearance' && (
             <ThemeSelector currentTheme={currentThemeType} onChangeTheme={onThemeChange} />
           )}
-
+ 
           {settingsTab === 'ai' && (
             <div className="flex flex-col gap-5">
               <div>
                 <h2 className={`text-lg font-black ${titleClass}`}>Yapay Zeka Sağlayıcısı</h2>
                 <p className={`text-sm mt-1 ${mutedClass}`}>Metin analizi, kelime sözlüğü ve kavrama testleri için kullanmak istediğiniz yapay zekayı seçin.</p>
               </div>
-
+ 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { id: 'gemini', label: 'Google Gemini' },
@@ -2965,9 +3361,9 @@ function SettingsPage({
                   </button>
                 ))}
               </div>
-
+ 
               <hr className="border-stone-100 dark:border-zinc-900" />
-
+ 
               {selectedProvider === 'gemini' && (
                 <div className="flex flex-col gap-3">
                   <label className="flex flex-col gap-2">
@@ -2983,7 +3379,7 @@ function SettingsPage({
                   </label>
                 </div>
               )}
-
+ 
               {selectedProvider === 'openai' && (
                 <div className="flex flex-col gap-3">
                   <label className="flex flex-col gap-2">
@@ -2999,7 +3395,7 @@ function SettingsPage({
                   </label>
                 </div>
               )}
-
+ 
               {selectedProvider === 'claude' && (
                 <div className="flex flex-col gap-3">
                   <label className="flex flex-col gap-2">
@@ -3015,7 +3411,7 @@ function SettingsPage({
                   </label>
                 </div>
               )}
-
+ 
               {selectedProvider === 'local' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="flex flex-col gap-2">
@@ -3040,17 +3436,177 @@ function SettingsPage({
                   </label>
                 </div>
               )}
-
+ 
               <div className="flex gap-2">
                 <button onClick={handleSave} className="h-12 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black">Kaydet</button>
                 <button onClick={handleClear} className="h-12 px-5 rounded-xl border border-stone-200 dark:border-zinc-800 text-xs font-black">Ayarları Sıfırla</button>
               </div>
-
+ 
               <div className={`rounded-2xl border p-4 ${softSurfaceClass}`}>
                 <p className={`text-xs font-black ${aiStatus.enabled ? 'text-emerald-500' : mutedClass}`}>
                   Yapay Zeka {aiStatus.enabled ? `Aktif (${aiStatus.provider?.toUpperCase()})` : 'Pasif'}
                 </p>
                 <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>{aiSaveMessage || 'Yapay zeka özellikleri belge detayı içindeki Yapay Zeka Analizi ve Yapay Zeka Soru & Aksiyon sekmelerinde çalışır.'}</p>
+              </div>
+            </div>
+          )}
+
+          {settingsTab === 'shortcuts' && (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h2 className={`text-lg font-black ${titleClass}`}>Klavye Kısayolları</h2>
+                <p className={`text-sm mt-1 ${mutedClass}`}>Okuyucu içerisindeki kısayol tuşlarını üzerine tıklayıp yeni bir tuşa basarak dinamik olarak değiştirebilirsiniz.</p>
+              </div>
+
+              <div className="border border-stone-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="bg-stone-50 dark:bg-zinc-900/40 border-b border-stone-200 dark:border-zinc-800">
+                      <th className="p-3 font-black">Eylem</th>
+                      <th className="p-3 font-black">Atanan Tuş (Kısayol)</th>
+                      <th className="p-3 font-black text-right">İşlem</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100 dark:divide-zinc-900">
+                    {Object.keys(shortcuts).map((key) => (
+                      <tr key={key} className="hover:bg-stone-50/55 dark:hover:bg-zinc-900/10">
+                        <td className="p-3 font-bold">{SHORTCUT_LABELS[key] || key}</td>
+                        <td className="p-3">
+                          {recordingKey === key ? (
+                            <span className="animate-pulse text-indigo-600 dark:text-indigo-400 font-black">Yeni bir tuşa basın...</span>
+                          ) : (
+                            <kbd className="px-2 py-1 rounded bg-stone-100 dark:bg-zinc-800 font-mono text-[11px] font-bold border border-stone-200 dark:border-zinc-700">
+                              {shortcuts[key as keyof typeof shortcuts]}
+                            </kbd>
+                          )}
+                        </td>
+                        <td className="p-3 text-right">
+                          <button
+                            onClick={() => setRecordingKey(key)}
+                            disabled={recordingKey !== null}
+                            className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] disabled:opacity-50"
+                          >
+                            Değiştir
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass} flex justify-between items-center`}>
+                <span className="text-xs font-bold">Kısayolları varsayılan ayarlara döndür:</span>
+                <button
+                  onClick={() => {
+                    const defaults = {
+                      playPause: 'Space',
+                      back10: 'ArrowLeft',
+                      forward10: 'ArrowRight',
+                      speedUp: 'ArrowUp',
+                      speedDown: 'ArrowDown',
+                      exit: 'Escape'
+                    };
+                    setShortcuts(defaults);
+                    localStorage.setItem('velox_shortcuts', JSON.stringify(defaults));
+                  }}
+                  className="h-8 px-3 rounded-lg border text-xs font-bold hover:bg-stone-50 dark:hover:bg-zinc-900"
+                >
+                  Varsayılana Dön
+                </button>
+              </div>
+            </div>
+          )}
+
+          {settingsTab === 'data' && (
+            <div className="flex flex-col gap-6">
+              <div>
+                <h2 className={`text-lg font-black ${titleClass}`}>Veri Yönetimi ve Destek</h2>
+                <p className={`text-sm mt-1 ${mutedClass}`}>Uygulama veritabanını yedekleyin, yedeği yükleyin veya veritabanını optimize edin.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`p-5 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3`}>
+                  <div>
+                    <h4 className="text-sm font-black flex items-center gap-2">
+                      <FileDown className="w-4 h-4 text-indigo-500" /> Veri Yedeği Al
+                    </h4>
+                    <p className={`text-xs mt-1.5 leading-relaxed ${mutedClass}`}>
+                      Kütüphanenizdeki tüm belgeleri, oluşturduğunuz quizleri, bilgi kartlarını ve istatistiklerinizi tek bir yedek dosyası (.json) olarak indirin.
+                    </p>
+                  </div>
+                  <button onClick={handleBackup} className="h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black self-start">
+                    Yedek Dosyası İndir
+                  </button>
+                </div>
+
+                <div className={`p-5 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3`}>
+                  <div>
+                    <h4 className="text-sm font-black flex items-center gap-2">
+                      <UploadCloud className="w-4 h-4 text-indigo-500" /> Yedek Yükle
+                    </h4>
+                    <p className={`text-xs mt-1.5 leading-relaxed ${mutedClass}`}>
+                      Daha önce aldığınız bir Velox yedek dosyasını (.json) seçerek tüm verilerinizi geri yükleyin. Mevcut verilerin üzerine yazılacaktır.
+                    </p>
+                  </div>
+                  <label className="h-10 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 text-xs font-black flex items-center justify-center cursor-pointer hover:bg-stone-50 dark:hover:bg-zinc-900/60 self-start">
+                    Dosya Seç ve Geri Yükle
+                    <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
+                  </label>
+                </div>
+
+                <div className={`p-5 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3`}>
+                  <div>
+                    <h4 className="text-sm font-black flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 text-amber-500" /> Veritabanını Optimize Et
+                    </h4>
+                    <p className={`text-xs mt-1.5 leading-relaxed ${mutedClass}`}>
+                      Performansı artırmak amacıyla okuma günlüğü ve quiz geçmişi gibi logları temizleyin. Belirleyeceğiniz gün sayısından önceki veriler kalıcı olarak silinir.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    <label className="flex items-center gap-2">
+                      <span className="text-xs font-bold">Kalan Gün Sayısı:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={optDays}
+                        onChange={(e) => setOptDays(Math.max(1, Number(e.target.value)))}
+                        className={`w-16 h-8 px-2 rounded-lg text-xs border outline-none ${isLightTheme ? 'border-stone-300 bg-white' : 'border-zinc-800 bg-zinc-950'}`}
+                      />
+                    </label>
+                    <button onClick={handleOptimizeData} className="h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black self-start">
+                      Geçmişi Temizle (Optimize Et)
+                    </button>
+                  </div>
+                </div>
+
+                <div className={`p-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 dark:bg-rose-950/5 flex flex-col justify-between gap-3`}>
+                  <div>
+                    <h4 className="text-sm font-black text-rose-500 flex items-center gap-2">
+                      <Trash2 className="w-4 h-4" /> Tüm Verileri Sıfırla
+                    </h4>
+                    <p className={`text-xs mt-1.5 leading-relaxed ${mutedClass}`}>
+                      Velox'taki tüm belgeleri, notları, quizleri ve istatistiklerinizi kalıcı olarak silin. Bu işlem geri alınamaz!
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="text"
+                      value={resetConfirmText}
+                      onChange={(e) => setResetConfirmText(e.target.value)}
+                      placeholder="Onaylamak için 'sil' yazın"
+                      className={`h-9 px-3 rounded-lg border text-xs outline-none ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950 text-zinc-100'}`}
+                    />
+                    <button
+                      onClick={handleResetAll}
+                      disabled={!isResetEnabled}
+                      className="h-10 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black disabled:opacity-50 self-start"
+                    >
+                      Veritabanını Sıfırla
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -223,18 +223,33 @@ export default function SpeedReader({
     return () => window.clearTimeout(timer);
   }, [isPlaying, currentIndex, speedWpm, groupSize, smartPauses, totalWords, currentWordGroup]);
 
+  const shortcuts = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('velox_shortcuts');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return {
+      playPause: 'Space',
+      back10: 'ArrowLeft',
+      forward10: 'ArrowRight',
+      speedUp: 'ArrowUp',
+      speedDown: 'ArrowDown',
+      exit: 'Escape'
+    };
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-      if (event.code === 'Space') {
+      if (event.code === shortcuts.playPause) {
         event.preventDefault();
         setIsPlaying(prev => !prev);
       }
-      if (event.code === 'ArrowLeft') handleNavigate(-10);
-      if (event.code === 'ArrowRight') handleNavigate(10);
-      if (event.code === 'ArrowUp') setSpeedWpm(prev => Math.min(1500, prev + 25));
-      if (event.code === 'ArrowDown') setSpeedWpm(prev => Math.max(50, prev - 25));
-      if (event.code === 'Escape') {
+      if (event.code === shortcuts.back10) handleNavigate(-10);
+      if (event.code === shortcuts.forward10) handleNavigate(10);
+      if (event.code === shortcuts.speedUp) setSpeedWpm(prev => Math.min(1500, prev + 25));
+      if (event.code === shortcuts.speedDown) setSpeedWpm(prev => Math.max(50, prev - 25));
+      if (event.code === shortcuts.exit) {
         if (isZenMode) {
           setIsZenMode(false);
         } else {
@@ -244,7 +259,7 @@ export default function SpeedReader({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, isZenMode]);
+  }, [onClose, isZenMode, shortcuts]);
 
   const handleNavigate = (delta: number) => {
     setCurrentIndex(prev => Math.min(totalWords, Math.max(0, prev + delta)));
