@@ -1,6 +1,6 @@
 {
-  "name": "ReadFlow",
-  "description": "Premium speed reading, active recall, and personal knowledge base. Read faster, remember more, and apply what you learn with smart RSVP, spaced repetition, and AI summaries.",
+  "name": "Velox",
+  "description": "Velox - Akıllı Okuma Asistanı. Yapay zeka destekli hızlı okuma, not alma, kavrama ve kişisel bilgi yönetimi uygulaması.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

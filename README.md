@@ -9,9 +9,9 @@
 
 ## 💻 Project Overview
 
-ReadFlow is a local-first intelligent reading workspace for documents, notes, and progress tracking. It combines RSVP-style speed reading, per-document note taking, reading analytics, optional Gemini-powered AI features, and multiple visual themes in a single desktop-friendly web app.
+Velox is a local-first intelligent reading workspace for documents, notes, and progress tracking. It combines RSVP-style speed reading, per-document note taking, reading analytics, optional Gemini-powered artificial intelligence features, and multiple visual themes in a single desktop-friendly web app.
 
-The application is designed for users who want to read faster, keep work notes beside each document, monitor their progress over time, and optionally enrich content with AI without making the core experience dependent on an API key.
+The application is designed for users who want to read faster, keep work notes beside each document, monitor their progress over time, and optionally enrich content with artificial intelligence without making the core experience dependent on an API key.
 
 ## 🚀 Key Features
 
@@ -19,8 +19,8 @@ The application is designed for users who want to read faster, keep work notes b
 - Document library with import flow for text-based content.
 - Per-document notes stored independently so each book keeps its own draft.
 - Reading progress tracking with daily goals, streaks, total words, time spent, and reading history.
-- AI tools for summaries, difficulty analysis, word explanations, comprehension, and insights.
-- User-controlled Gemini API key support with optional AI usage.
+- Artificial intelligence tools for summaries, difficulty analysis, word explanations, comprehension, and insights.
+- User-controlled Gemini API key support with optional artificial intelligence usage.
 - Theme system with light, dark, sepia, nord, amoled, and matrix modes.
 - Local-first persistence with `localStorage` plus IndexedDB mirroring, and optional Firestore cloud sync.
 - Responsive sidebar modes: full, compact, and hidden.
@@ -43,7 +43,7 @@ The application is designed for users who want to read faster, keep work notes b
 ## 📁 Project Structure
 
 ```text
-readflow/
+velox/
 ├─ src/
 │  ├─ App.tsx
 │  ├─ main.tsx
@@ -71,14 +71,14 @@ readflow/
 
 ## 💾 Database/Data Schema
 
-ReadFlow uses a hybrid local storage model:
+Velox uses a hybrid local storage model:
 
 | Layer | Key / Collection | Purpose | Shape |
 |---|---|---|---|
-| `localStorage` | `readflow_books` | Library state | `BookMark[]` |
-| `localStorage` | `readflow_stats` | Reading analytics | `UserStats` |
-| `localStorage` | `readflow_prefs` | Reader preferences | `UserPreferences` |
-| `localStorage` | `readflow_notes_text_<bookId>` | Per-document notes | `string` |
+| `localStorage` | `velox_books` | Library state | `BookMark[]` |
+| `localStorage` | `velox_stats` | Reading analytics | `UserStats` |
+| `localStorage` | `velox_prefs` | Reader preferences | `UserPreferences` |
+| `localStorage` | `velox_notes_text_<bookId>` | Per-document notes | `string` |
 | IndexedDB | same core keys | Durable local mirror | mirrored JSON payloads |
 | Firestore | `users`, `library`, `sessions` | Optional cloud sync | mirrored documents |
 
@@ -180,7 +180,7 @@ npm.cmd run start
 ### Usage notes
 
 - Core reading, notes, library, progress, and themes work without an API key.
-- If a user enters their own Gemini API key in the settings screen, AI features become available.
+- If a user enters their own Gemini API key in the settings screen, artificial intelligence features become available.
 - The app supports direct routes such as `/reading/:bookId`, `/notes/:bookId`, `/progress`, `/guide`, and `/settings`.
 
 ## ⚖️ License
@@ -194,7 +194,7 @@ Licensed under the Apache License 2.0. See the `SPDX-License-Identifier: Apache-
 
 ## 💻 Proje Amacı ve Tanımı
 
-ReadFlow, belgeler, notlar ve ilerleme takibi için yerel öncelikli çalışan akıllı bir okuma çalışma alanıdır. RSVP tabanlı hız okuma, belge bazlı not tutma, okuma analitiği, isteğe bağlı Gemini destekli yapay zeka özellikleri ve çoklu tema desteğini tek bir masaüstü dostu web uygulamasında birleştirir.
+Velox, belgeler, notlar ve ilerleme takibi için yerel öncelikli çalışan akıllı bir okuma çalışma alanıdır. RSVP tabanlı hız okuma, belge bazlı not tutma, okuma analitiği, isteğe bağlı Gemini destekli yapay zeka özellikleri ve çoklu tema desteğini tek bir masaüstü dostu web uygulamasında birleştirir.
 
 Uygulama; daha hızlı okumak, her belgeye özel notları ayrı tutmak, ilerlemeyi zaman içinde izlemek ve çekirdek deneyimi bir API anahtarına bağımlı olmadan kullanmak isteyen kullanıcılar için tasarlanmıştır.
 
@@ -204,8 +204,8 @@ Uygulama; daha hızlı okumak, her belgeye özel notları ayrı tutmak, ilerleme
 - Metin tabanlı içerik için belge kütüphanesi ve içe aktarma akışı.
 - Her belgenin notlarını ayrı tutan bağımsız not yapısı.
 - Günlük hedef, seri, toplam kelime, geçirilen süre ve geçmiş ile okuma ilerleme takibi.
-- Özet, zorluk analizi, kelime açıklama, kavrama ve içgörü üretimi için AI araçları.
-- Kullanıcının kendi Gemini API key’ini girebildiği, isteğe bağlı AI kullanımı.
+- Özet, zorluk analizi, kelime açıklama, kavrama ve içgörü üretimi için yapay zeka araçları.
+- Kullanıcının kendi Gemini API key’ini girebildiği, isteğe bağlı yapay zeka kullanımı.
 - Light, dark, sepia, nord, amoled ve matrix temaları.
 - `localStorage` + IndexedDB yedekli yerel saklama ve isteğe bağlı Firestore bulut senkronizasyonu.
 - Full, compact ve hidden olmak üzere üç modlu yan menü.
@@ -228,7 +228,7 @@ Uygulama; daha hızlı okumak, her belgeye özel notları ayrı tutmak, ilerleme
 ## 📁 Proje Yapısı
 
 ```text
-readflow/
+velox/
 ├─ src/
 │  ├─ App.tsx
 │  ├─ main.tsx
@@ -256,14 +256,14 @@ readflow/
 
 ## 💾 Veri Modeli / Şema
 
-ReadFlow hibrit bir yerel saklama modeli kullanır:
+Velox hibrit bir yerel saklama modeli kullanır:
 
 | Katman | Anahtar / Koleksiyon | Amaç | Yapı |
 |---|---|---|---|
-| `localStorage` | `readflow_books` | Kütüphane durumu | `BookMark[]` |
-| `localStorage` | `readflow_stats` | Okuma analitiği | `UserStats` |
-| `localStorage` | `readflow_prefs` | Okuyucu tercihleri | `UserPreferences` |
-| `localStorage` | `readflow_notes_text_<bookId>` | Belge bazlı notlar | `string` |
+| `localStorage` | `velox_books` | Kütüphane durumu | `BookMark[]` |
+| `localStorage` | `velox_stats` | Okuma analitiği | `UserStats` |
+| `localStorage` | `velox_prefs` | Okuyucu tercihleri | `UserPreferences` |
+| `localStorage` | `velox_notes_text_<bookId>` | Belge bazlı notlar | `string` |
 | IndexedDB | aynı çekirdek anahtarlar | Daha kalıcı yerel kopya | yansıtılan JSON verisi |
 | Firestore | `users`, `library`, `sessions` | İsteğe bağlı bulut senkronizasyonu | yansıtılan dokümanlar |
 
@@ -365,7 +365,7 @@ npm.cmd run start
 ### Kullanım notları
 
 - Çekirdek okuma, not alma, kütüphane, ilerleme ve tema özellikleri API anahtarı olmadan çalışır.
-- Kullanıcı ayarlardan kendi Gemini API key’ini girerse AI özellikleri aktif olur.
+- Kullanıcı ayarlardan kendi Gemini API key’ini girerse yapay zeka özellikleri aktif olur.
 - Uygulama `/reading/:bookId`, `/notes/:bookId`, `/progress`, `/guide` ve `/settings` gibi doğrudan rotaları destekler.
 
 ## ⚖️ Lisans

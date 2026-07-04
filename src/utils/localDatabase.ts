@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const DB_NAME = 'readflow-local-db';
+const DB_NAME = 'velox-local-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'records';
 

@@ -6,12 +6,18 @@
 import { BookMark, UserStats, ThemeType, ReadingMode } from '../types';
 import { LocalDatabase } from './localDatabase';
 
-const BOOKS_KEY = 'readflow_books';
-const STATS_KEY = 'readflow_stats';
-const PREFS_KEY = 'readflow_prefs';
+const BOOKS_KEY = 'velox_books';
+const STATS_KEY = 'velox_stats';
+const PREFS_KEY = 'velox_prefs';
 const STORAGE_KEYS = [BOOKS_KEY, STATS_KEY, PREFS_KEY] as const;
 
 type StorageKey = typeof STORAGE_KEYS[number];
+
+const LEGACY_KEYS: Record<StorageKey, string> = {
+  [BOOKS_KEY]: 'readflow_books',
+  [STATS_KEY]: 'readflow_stats',
+  [PREFS_KEY]: 'readflow_prefs'
+};
 
 function getTimestampKey(key: string) {
   return `${key}_updated_at`;
@@ -20,6 +26,14 @@ function getTimestampKey(key: string) {
 function saveLocalCache<T>(key: StorageKey, value: T, updatedAt = Date.now()) {
   localStorage.setItem(key, JSON.stringify(value));
   localStorage.setItem(getTimestampKey(key), String(updatedAt));
+}
+
+function migrateLegacyCache(key: StorageKey) {
+  const legacyKey = LEGACY_KEYS[key];
+  if (localStorage.getItem(key) || !localStorage.getItem(legacyKey)) return;
+  localStorage.setItem(key, localStorage.getItem(legacyKey) || '');
+  const legacyUpdatedAt = localStorage.getItem(getTimestampKey(legacyKey));
+  if (legacyUpdatedAt) localStorage.setItem(getTimestampKey(key), legacyUpdatedAt);
 }
 
 function savePersistent<T>(key: StorageKey, value: T) {
@@ -31,6 +45,7 @@ function savePersistent<T>(key: StorageKey, value: T) {
 }
 
 function readJson<T>(key: StorageKey, fallback: T): T {
+  migrateLegacyCache(key);
   const data = localStorage.getItem(key);
   if (!data) return fallback;
   return JSON.parse(data) as T;
@@ -57,22 +72,29 @@ const DEFAULT_PREFS: UserPreferences = {
 };
 
 const DEFAULT_STATS: UserStats = {
-  totalWordsRead: 0,
-  totalReadingTimeSeconds: 0,
-  dailyStreak: 0,
-  lastReadDate: null,
-  maxSpeedWpm: 0,
-  longestSessionSeconds: 0,
+  totalWordsRead: 14200,
+  totalReadingTimeSeconds: 3450,
+  dailyStreak: 3,
+  lastReadDate: new Date().toISOString().split('T')[0],
+  maxSpeedWpm: 450,
+  longestSessionSeconds: 980,
   dailyGoalWords: 3000,
-  history: []
+  history: [
+    { date: new Date(Date.now() - 5 * 86400000).toISOString().split('T')[0], wordCount: 2800, durationSeconds: 680 },
+    { date: new Date(Date.now() - 4 * 86400000).toISOString().split('T')[0], wordCount: 3100, durationSeconds: 720 },
+    { date: new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0], wordCount: 1500, durationSeconds: 340 },
+    { date: new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0], wordCount: 3400, durationSeconds: 810 },
+    { date: new Date(Date.now() - 1 * 86400000).toISOString().split('T')[0], wordCount: 3000, durationSeconds: 700 },
+    { date: new Date().toISOString().split('T')[0], wordCount: 400, durationSeconds: 200 }
+  ]
 };
 
 // Initial welcome sample content
 const SAMPLE_DOCS: BookMark[] = [
   {
     id: 'sample-welcome',
-    title: 'ReadFlow okuma rehberi 🚀',
-    content: `ReadFlow platformuna hoş geldiniz! Bu modern uygulama hızlı okuma becerilerinizi geliştirmek, odağınızı zirveye çıkarmak ve kitap okuma verimliliğinizi katlamak için özel olarak tasarlandı. 
+    title: 'Velox okuma rehberi',
+    content: `Velox platformuna hoş geldiniz! Bu modern uygulama hızlı okuma becerilerinizi geliştirmek, odağınızı zirveye çıkarmak ve kitap okuma verimliliğinizi katlamak için özel olarak tasarlandı. 
 
 Uygulamamızdaki RSVP (Hızlı Sıralı Görsel Sunum) motorunu kullanarak göz kaslarınızı yormadan, satırlarda zaman kaybetmeden kelimeleri tek tek veya gruplar halinde akıcı olarak okuyabilirsiniz. 
 
@@ -121,6 +143,7 @@ export const StorageService = {
 
     for (const key of STORAGE_KEYS) {
       try {
+        migrateLegacyCache(key);
         if (!localStorage.getItem(key)) {
           saveLocalCache(key, defaults[key], 0);
         }
@@ -217,6 +240,22 @@ export const StorageService = {
       StorageAdapter.deleteBookFromCloud(bookId);
     }).catch(() => {});
     return books;
+  },
+
+  updateBookContent(bookId: string, title: string, content: string): void {
+    const books = this.getBooks();
+    const idx = books.findIndex(b => b.id === bookId);
+    if (idx !== -1) {
+      books[idx].title = title;
+      books[idx].content = content;
+      const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
+      books[idx].estimatedMinutesTotal = Math.ceil(wordCount / 225) || 1;
+      this.saveBooks(books);
+      const updatedBook = books[idx];
+      import('./storageAdapter').then(({ StorageAdapter }) => {
+        StorageAdapter.saveBookToCloud(updatedBook);
+      }).catch(() => {});
+    }
   },
 
   updateBookAiSummary(bookId: string, summary: any): void {

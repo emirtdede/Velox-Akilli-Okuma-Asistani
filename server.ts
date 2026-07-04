@@ -8,6 +8,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import { exec } from 'child_process';
 
 // Load environment variables
 dotenv.config();
@@ -92,7 +93,7 @@ function createGeminiClient(apiKey: string): GoogleGenAI {
     apiKey,
     httpOptions: {
       headers: {
-        'User-Agent': 'readflow-local',
+        'User-Agent': 'velox-local',
       }
     }
   });
@@ -340,7 +341,7 @@ ${context ? `Bağlam / Cümle: "${context}"` : ''}`,
 
   // 3.5 Active Recall & Comprehension Quiz Route
   app.post(['/api/ai/comprehension', '/api/gemini/comprehension'], async (req, res) => {
-    const { text, title } = req.body;
+    const { text, title, questionCount = 3, difficulty = 'Orta' } = req.body;
     if (!text || typeof text !== 'string') {
       res.status(400).json({ error: 'Geçersiz metin verisi.' });
       return;
@@ -348,12 +349,11 @@ ${context ? `Bağlam / Cümle: "${context}"` : ''}`,
 
     try {
       const client = getGeminiClient(getRequestApiKey(req));
-      console.log(`[AI] Comprehension Quiz requested for: "${title || 'Untitled'}"`);
+      console.log(`[AI] Comprehension Quiz requested for: "${title || 'Untitled'}" (Questions: ${questionCount}, Difficulty: ${difficulty})`);
 
       const response = await generateContentWithFallback(client, {
-        contents: `Aşağıdaki metinden 3 adet çoktan seçmeli (A, B, C, D) Türkçe kavrama sorusu oluştur. Okuduğunu anlama seviyesini test etsin.
-Ayrıca, kullanıcının bu metni daha iyi hazmetmesi için bir adet "Feynman Metodu" sorgusu üret (Örneğin: "Bu kısmı 6 yaşındaki bir çocuğa nasıl açıklarsın?" gibi).
-Metnin tahmini kavrama zorluk derecesini (1-100 arasında) belirle.
+        contents: `Aşağıdaki metinden ${questionCount} adet çoktan seçmeli (A, B, C, D) Türkçe kavrama sorusu oluştur. Okuduğunu anlama seviyesini test etsin.
+Sınavın zorluk derecesi "${difficulty}" olsun. Metnin tahmini kavrama zorluk derecesini (1-100 arasında) belirle.
 
 Metin Başlığı: "${title || 'Metin'}"
 Metin İçeriği:
@@ -380,16 +380,12 @@ ${text.slice(0, 4000)}`,
                   required: ['question', 'options', 'correctOptionIndex', 'explanation']
                 }
               },
-              feynmanPrompt: {
-                type: Type.STRING,
-                description: 'Aktif hatırlamayı ve Feynman tekniğini pekiştirecek yaratıcı bir sorgu'
-              },
               difficultyRating: {
                 type: Type.INTEGER,
                 description: 'Metnin anlama ve kavrama zorluk derecesi (1-100)'
               }
             },
-            required: ['questions', 'feynmanPrompt', 'difficultyRating']
+            required: ['questions', 'difficultyRating']
           }
         }
       });
@@ -459,6 +455,61 @@ ${text.slice(0, 4000)}`,
     } catch (error: any) {
       console.error('[AI Error] Insights failed:', error);
       res.status(500).json({ error: error.message || 'Uygulanabilir öngörüler çıkarılamadı.' });
+    }
+  });
+
+  // 3.7 Flashcard Generation Route
+  app.post(['/api/ai/flashcards', '/api/gemini/flashcards'], async (req, res) => {
+    const { text, title, count = 5, topic = 'Genel' } = req.body;
+    if (!text || typeof text !== 'string') {
+      res.status(400).json({ error: 'Geçersiz metin verisi.' });
+      return;
+    }
+
+    try {
+      const client = getGeminiClient(getRequestApiKey(req));
+      console.log(`[AI] Flashcards requested for: "${title || 'Untitled'}" (Count: ${count}, Topic: ${topic})`);
+
+      const response = await generateContentWithFallback(client, {
+        contents: `Aşağıdaki metinden ${count} adet öğretici bilgi kartı (flashcard) oluştur. 
+Her kartın bir ön yüzü (soru/kavram) ve bir arka yüzü (cevap/açıklama) olmalıdır. 
+Kartların odak konusu veya türü: "${topic}" olsun. Çıktı dilinin tamamen Türkçe olmasına dikkat et.
+
+Metin Başlığı: "${title || 'Metin'}"
+Metin İçeriği:
+${text.slice(0, 4000)}`,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              flashcards: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    front: { type: Type.STRING, description: 'Bilgi kartının ön yüzü (Soru, kavram veya terim)' },
+                    back: { type: Type.STRING, description: 'Bilgi kartının arka yüzü (Cevap, tanım veya detaylı açıklama)' }
+                  },
+                  required: ['front', 'back']
+                }
+              }
+            },
+            required: ['flashcards']
+          }
+        }
+      });
+
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error("Bilgi kartları üretilemedi.");
+      }
+
+      const parsed = JSON.parse(responseText.trim());
+      res.json(parsed);
+    } catch (error: any) {
+      console.error('[AI Error] Flashcards failed:', error);
+      res.status(500).json({ error: error.message || 'Bilgi kartları üretilemedi.' });
     }
   });
 
@@ -564,7 +615,29 @@ ${text.slice(0, 4000)}`,
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[ReadFlow] Server listening on http://0.0.0.0:${PORT}`);
+    console.log(`[Velox] Server listening on http://0.0.0.0:${PORT}`);
+    
+    // Automatically open in app mode when starting
+    const url = `http://localhost:${PORT}`;
+    if (process.platform === 'win32') {
+      exec(`start msedge --app=${url}`, (err) => {
+        if (err) {
+          exec(`start chrome --app=${url}`, (err2) => {
+            if (err2) {
+              exec(`start ${url}`);
+            }
+          });
+        }
+      });
+    } else if (process.platform === 'darwin') {
+      exec(`open -a "Google Chrome" --args --app=${url}`, (err) => {
+        if (err) {
+          exec(`open ${url}`);
+        }
+      });
+    } else {
+      exec(`xdg-open ${url}`);
+    }
   });
 }
 
