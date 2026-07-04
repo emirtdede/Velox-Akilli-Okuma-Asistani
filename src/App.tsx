@@ -305,7 +305,13 @@ export default function App() {
   const [userGoals, setUserGoals] = useState<any>(() => {
     const stored = localStorage.getItem('velox_user_goals');
     if (stored) {
-      try { return JSON.parse(stored); } catch (e) {}
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed.showReadingGoal === undefined) parsed.showReadingGoal = true;
+        if (parsed.showQuizzesGoal === undefined) parsed.showQuizzesGoal = true;
+        if (parsed.showCardsGoal === undefined) parsed.showCardsGoal = true;
+        return parsed;
+      } catch (e) {}
     }
     const defaultGoals = {
       dailyWords: 3000,
@@ -319,7 +325,10 @@ export default function App() {
       yearlyQuizzes: 100,
       dailyCards: 15,
       monthlyCards: 300,
-      yearlyCards: 3000
+      yearlyCards: 3000,
+      showReadingGoal: true,
+      showQuizzesGoal: true,
+      showCardsGoal: true
     };
     localStorage.setItem('velox_user_goals', JSON.stringify(defaultGoals));
     return defaultGoals;
@@ -1261,91 +1270,162 @@ function HomePage({
 
           {isEditingGoals ? (
             <div className="flex flex-col gap-3">
-              <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-stone-505">Okuma Hedefi (Kelime)</span>
-                <input
-                  type="number"
-                  min="100"
-                  step="100"
-                  value={editGoals.dailyWords}
-                  onChange={(e) => setEditGoals({ ...editGoals, dailyWords: Math.max(1, Number(e.target.value)) })}
-                  className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
-                    isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
-                  }`}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-stone-505">Quiz Hedefi (Adet)</span>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={editGoals.dailyQuizzes}
-                  onChange={(e) => setEditGoals({ ...editGoals, dailyQuizzes: Math.max(1, Number(e.target.value)) })}
-                  className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
-                    isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
-                  }`}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-stone-505">Bilgi Kartı Hedefi (Tekrar)</span>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={editGoals.dailyCards}
-                  onChange={(e) => setEditGoals({ ...editGoals, dailyCards: Math.max(1, Number(e.target.value)) })}
-                  className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
-                    isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
-                  }`}
-                />
-              </label>
+              <div className="flex flex-col gap-2 p-2.5 bg-stone-50 dark:bg-zinc-900/40 rounded-2xl border border-stone-200 dark:border-zinc-800">
+                <span className="text-[9px] font-black uppercase text-stone-500 tracking-wider">Hedef Seçimi ve Görünürlük</span>
+                <div className="flex flex-col gap-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editGoals.showReadingGoal !== false}
+                      onChange={(e) => setEditGoals({ ...editGoals, showReadingGoal: e.target.checked })}
+                      className="rounded border-stone-300 dark:border-zinc-800 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs font-bold">Okuma Hedefi</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editGoals.showQuizzesGoal !== false}
+                      onChange={(e) => setEditGoals({ ...editGoals, showQuizzesGoal: e.target.checked })}
+                      className="rounded border-stone-300 dark:border-zinc-800 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs font-bold">Quiz Hedefi</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editGoals.showCardsGoal !== false}
+                      onChange={(e) => setEditGoals({ ...editGoals, showCardsGoal: e.target.checked })}
+                      className="rounded border-stone-300 dark:border-zinc-800 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs font-bold">Bilgi Kartı Hedefi</span>
+                  </label>
+                </div>
+              </div>
+
+              {editGoals.showReadingGoal !== false && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-stone-505">Okuma Hedefi (Kelime)</span>
+                  <input
+                    type="number"
+                    min="100"
+                    step="100"
+                    value={editGoals.dailyWords}
+                    onChange={(e) => setEditGoals({ ...editGoals, dailyWords: Math.max(1, Number(e.target.value)) })}
+                    className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
+                      isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
+                    }`}
+                  />
+                </label>
+              )}
+              {editGoals.showQuizzesGoal !== false && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-stone-505">Quiz Hedefi (Adet)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={editGoals.dailyQuizzes}
+                    onChange={(e) => setEditGoals({ ...editGoals, dailyQuizzes: Math.max(1, Number(e.target.value)) })}
+                    className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
+                      isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
+                    }`}
+                  />
+                </label>
+              )}
+              {editGoals.showCardsGoal !== false && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-stone-505">Bilgi Kartı Hedefi (Tekrar)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={editGoals.dailyCards}
+                    onChange={(e) => setEditGoals({ ...editGoals, dailyCards: Math.max(1, Number(e.target.value)) })}
+                    className={`w-full h-8 px-2 rounded-xl text-xs outline-none border ${
+                      isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-stone-250 dark:border-zinc-800 bg-white dark:bg-zinc-950'
+                    }`}
+                  />
+                </label>
+              )}
               <div className="flex gap-2 mt-1">
                 <button onClick={handleSaveGoals} className="h-8 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black">Kaydet</button>
                 <button onClick={() => setIsEditingGoals(false)} className={`h-8 px-3 rounded-xl border text-[10px] font-black ${isLightTheme ? 'border-stone-300 hover:bg-stone-50' : 'border-stone-250 dark:border-zinc-800'}`}>İptal</button>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
+              {userGoals.showReadingGoal === false && userGoals.showQuizzesGoal === false && userGoals.showCardsGoal === false && (
+                <p className={`text-xs text-center py-6 ${mutedClass}`}>Tüm hedefler gizlendi. Düzenlemek için sağ üstten "Hedefleri Düzenle" butonuna tıklayabilirsiniz.</p>
+              )}
+
               {/* Kelime Hedefi */}
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className={titleClass}>Okuma</span>
-                  <span className={mutedClass}>{todayWords} / {userGoals.dailyWords.toLocaleString()} Kelime (%{wordPercentage})</span>
+              {userGoals.showReadingGoal !== false && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 flex flex-col gap-1">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="flex items-center gap-1.5 text-current">
+                        <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+                        Okuma
+                      </span>
+                      <span className={mutedClass}>{todayWords} / {userGoals.dailyWords.toLocaleString()} Kelime (%{wordPercentage})</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${wordPercentage}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-xl bg-amber-500/10 text-amber-500 text-[10px] font-black shrink-0">
+                    <Flame className="w-3 h-3 fill-amber-500" />
+                    <span>{stats.dailyStreak || 0} Gün</span>
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
-                  <div className="h-full rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${wordPercentage}%` }} />
-                </div>
-              </div>
+              )}
 
               {/* Quiz Hedefi */}
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className={titleClass}>Quizler</span>
-                  <span className={mutedClass}>{todayQuizzesCount} / {userGoals.dailyQuizzes.toLocaleString()} Quiz (%{quizPercentage})</span>
+              {userGoals.showQuizzesGoal !== false && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 flex flex-col gap-1">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="flex items-center gap-1.5 text-current">
+                        <HelpCircle className="w-3.5 h-3.5 text-pink-500" />
+                        Quizler
+                      </span>
+                      <span className={mutedClass}>{todayQuizzesCount} / {userGoals.dailyQuizzes.toLocaleString()} Quiz (%{quizPercentage})</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-pink-500 transition-all duration-300" style={{ width: `${quizPercentage}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-xl bg-pink-500/10 text-pink-500 text-[10px] font-black shrink-0">
+                    <Flame className="w-3 h-3 fill-pink-500" />
+                    <span>{stats.quizStreak || 0} Gün</span>
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
-                  <div className="h-full rounded-full bg-pink-500 transition-all duration-300" style={{ width: `${quizPercentage}%` }} />
-                </div>
-              </div>
+              )}
 
               {/* Bilgi Kartı Hedefi */}
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className={titleClass}>Bilgi Kartı</span>
-                  <span className={mutedClass}>{todayCardsCount} / {userGoals.dailyCards.toLocaleString()} Kart (%{cardPercentage})</span>
+              {userGoals.showCardsGoal !== false && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 flex flex-col gap-1">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="flex items-center gap-1.5 text-current">
+                        <Layers className="w-3.5 h-3.5 text-emerald-500" />
+                        Bilgi Kartı
+                      </span>
+                      <span className={mutedClass}>{todayCardsCount} / {userGoals.dailyCards.toLocaleString()} Kart (%{cardPercentage})</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${cardPercentage}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-black shrink-0">
+                    <Flame className="w-3 h-3 fill-emerald-500" />
+                    <span>{stats.cardStreak || 0} Gün</span>
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
-                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${cardPercentage}%` }} />
-                </div>
-              </div>
+              )}
             </div>
           )}
-
-          <div className="flex items-center gap-1.5 mt-2 text-amber-500 text-xs font-black border-t border-stone-100 dark:border-zinc-900/60 pt-3">
-            <Flame className="w-4 h-4 fill-amber-500" />
-            <span>{stats.dailyStreak || 0} Günlük Seri</span>
-          </div>
         </div>
 
       </div>
