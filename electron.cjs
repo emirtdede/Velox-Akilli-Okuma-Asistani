@@ -72,7 +72,9 @@ function createWindow() {
     },
     autoHideMenuBar: true,
     title: "Velox - Akıllı Okuma Asistanı",
-    icon: path.join(__dirname, 'public/transparent.png')
+    icon: app.isPackaged
+      ? path.join(__dirname, 'dist/transparent.png')
+      : path.join(__dirname, 'public/transparent.png')
   });
 
   mainWindow.loadURL('data:text/html,<html><body style="background:#1e1e2e;color:#cdd6f4;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;"><div><h2>Velox Yükleniyor...</h2></div></body></html>');
