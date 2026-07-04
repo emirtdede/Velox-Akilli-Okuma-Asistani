@@ -922,7 +922,7 @@ export default function App() {
           {activeTab === 'guide' && (
             <section className="flex flex-col gap-5">
               <PageHeader title="Uygulama Rehberi" description="Velox kullanım kılavuzu ve teknik rehberi." titleClass={titleClass} mutedClass={mutedClass} />
-              <GuideContent currentTheme={currentTheme} />
+              <GuideContent currentTheme={currentTheme} surfaceClass={surfaceClass} softSurfaceClass={softSurfaceClass} titleClass={titleClass} mutedClass={mutedClass} isLightTheme={isLightTheme} />
             </section>
           )}
 
@@ -3629,83 +3629,302 @@ function SettingsPage({
   );
 }
 
-function GuideContent({ currentTheme }: { currentTheme: ThemeConfig }) {
-  const cards = [
-    ['RSVP Okuma', 'Kelimeleri veya kelime gruplarını ekranın merkezinde sırayla gösterir. Gözün satır başı-sonu taramasını azaltır ve ritmik okumayı kolaylaştırır.'],
-    ['Hız (WPM)', 'Dakikada gösterilecek kelime sayısıdır. 200-300 başlangıç, 300-450 dengeli pratik, 450+ ise deneyimli kullanıcı aralığıdır.'],
-    ['Kelime Grubu', 'Aynı anda gösterilen kelime sayısıdır. Üst sınır yoktur; sayı yükseldikçe hız artabilir ama kavrama düşebilir.'],
-    ['ORP', 'Optimal Tanıma Noktasıdır. Tek kelimede gözün kelimeyi daha hızlı yakalaması için odak harfi vurgulanır.'],
-    ['Odak Çizgisi', 'Kelimenin merkezini sabitlemeye yarayan görsel rehberdir. Dikkatini dağıtıyorsa okuyucu araçlarından kapatılabilir.'],
-    ['Akıllı Es', 'Nokta, virgül, iki nokta ve uzun kelimelerde kısa doğal duraklamalar ekler. Anlamayı destekler.'],
-    ['Odak Modları', 'Merkez RSVP, satır modu, teleprompter, bionic reading ve paragraf vurgusu arasında geçiş yapabilirsin.'],
-    ['Notlar', 'Her belge için ayrı saklanır. Çalışma Alanı içinde seçili belgeye bağlı not düzenleyici olarak çalışır.']
+function GuideContent({
+  currentTheme,
+  surfaceClass,
+  softSurfaceClass,
+  titleClass,
+  mutedClass,
+  isLightTheme
+}: any) {
+  const [guideTab, setGuideTab] = useState<'intro' | 'features' | 'ai' | 'glossary' | 'faqs' | 'limits'>('intro');
+
+  const GUIDE_TABS = [
+    { id: 'intro', label: '5N1K ile Velox', icon: HelpCircle },
+    { id: 'features', label: 'Özellikler & Kullanım', icon: Sparkles },
+    { id: 'ai', label: 'Yapay Zeka Kurulumu', icon: Brain },
+    { id: 'glossary', label: 'Terimler Sözlüğü', icon: BookOpen },
+    { id: 'faqs', label: 'Teknik Sorunlar & SSS', icon: FileQuestion },
+    { id: 'limits', label: 'Uygulamanın Sınırları', icon: Shield }
   ];
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className={`rounded-2xl border ${currentTheme.border} ${currentTheme.cardBg} p-5`}>
-        <h3 className="text-base font-black">Velox kimler için?</h3>
-        <p className="text-sm opacity-75 leading-relaxed mt-2">
-          Uzun metinleri daha odaklı okumak, okuma hızını takip etmek, not almak ve okuma sonrası kavramayı güçlendirmek isteyen öğrenciler, araştırmacılar, yazılımcılar, yöneticiler ve düzenli okuma alışkanlığı kurmak isteyen kullanıcılar için tasarlanmıştır.
-        </p>
-      </div>
-
-      <div className={`rounded-2xl border ${currentTheme.border} ${currentTheme.cardBg} p-5`}>
-        <h3 className="text-base font-black">Yapay Zeka Aktif / Yapay Zeka Pasif ne demek?</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-            <h4 className="text-sm font-black text-emerald-500">Yapay Zeka Aktif</h4>
-            <p className="text-xs opacity-75 leading-relaxed mt-2">
-              Yapay zeka sağlayıcı ayarları başarıyla yapılandırılmıştır. Seçili belge için yapay zeka destekli metin özeti, zorluk analizi, kelime sözlüğü, kavrama testleri ve aksiyon önerileri üretilebilir.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-stone-500/20 bg-stone-500/10 p-4">
-            <h4 className="text-sm font-black">Yapay Zeka Pasif</h4>
-            <p className="text-xs opacity-75 leading-relaxed mt-2">
-              Yapay zeka sağlayıcı ayarları yapılandırılmamıştır veya devre dışıdır. Temel okuma, kütüphane yönetimi, not alma, ilerleme takibi ve RSVP okuyucu özellikleri çalışmaya devam eder.
-            </p>
-          </div>
+    <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-5">
+      <aside className={`rounded-2xl border p-3 ${surfaceClass} h-fit`}>
+        <div className="flex flex-col gap-1">
+          {GUIDE_TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setGuideTab(tab.id as any)}
+              className={`h-11 px-3 rounded-xl text-xs font-black flex items-center gap-3 transition-colors ${
+                guideTab === tab.id
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/10'
+                  : `${mutedClass} hover:bg-stone-100 dark:hover:bg-zinc-900`
+              }`}
+            >
+              <tab.icon className="w-4 h-4" /> {tab.label}
+            </button>
+          ))}
         </div>
-      </div>
+      </aside>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-        {cards.map(([title, body]) => (
-          <div key={title} className={`rounded-2xl border ${currentTheme.border} ${currentTheme.cardBg} p-4`}>
-            <h3 className="text-sm font-black">{title}</h3>
-            <p className="text-xs opacity-70 mt-2 leading-relaxed">{body}</p>
+      <div className={`rounded-2xl border p-6 ${surfaceClass} min-h-[500px]`}>
+        {guideTab === 'intro' && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <h2 className={`text-lg font-black ${titleClass}`}>5N1K ile Velox Okuma Asistanı</h2>
+              <p className={`text-sm mt-1.5 leading-relaxed ${mutedClass}`}>
+                Velox'un vizyonunu, amacını ve temel felsefesini sorgulayan soruların yanıtları.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              <div className={`p-4 rounded-xl border ${softSurfaceClass}`}>
+                <h4 className={`text-xs font-black uppercase text-indigo-500`}>NE (What)</h4>
+                <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>
+                  Velox; odaklanmış RSVP hızlı okuma, dinamik kütüphane/not yönetimi, Leitner hafıza kartı pekiştirmesi ve otomatik kavrama testleri sunan bütünsel bir akıllı okuma asistanıdır.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass}`}>
+                <h4 className={`text-xs font-black uppercase text-indigo-500`}>NEDEN (Why)</h4>
+                <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>
+                  Bilgi çağında uzun dokümanları hızla taramak, gözün satır başı-sonu git-gellerini azaltarak odak kaybını engellemek ve okunan bilgiyi kalıcı hafızaya aktarmak için tasarlanmıştır.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass}`}>
+                <h4 className={`text-xs font-black uppercase text-indigo-500`}>NASIL (How)</h4>
+                <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>
+                  Kütüphaneye yüklenen metinleri RSVP vizörüyle kelime kelime oynatır. Yapay zeka ile otomatik özet, zorluk analizi ve kavrama testleri oluşturup, Leitner kutu algoritmasıyla kavramları test edersiniz.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass}`}>
+                <h4 className={`text-xs font-black uppercase text-indigo-500`}>NE ZAMAN (When)</h4>
+                <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>
+                  Ders çalışırken, uzun araştırma makalelerini incelerken, yeni bir teknik dokümantasyon okurken veya günlük okuma alışkanlığınızı takip ederken dilediğiniz an kullanabilirsiniz.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass}`}>
+                <h4 className={`text-xs font-black uppercase text-indigo-500`}>NEREDE (Where)</h4>
+                <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>
+                  Velox tamamen masaüstünüzde çalışır. Çevrimdışı öncelikli (offline-first) mimarisi sayesinde tüm kütüphaneniz, notlarınız ve test başarı geçmişiniz yerel bilgisayarınızda depolanır.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass}`}>
+                <h4 className={`text-xs font-black uppercase text-indigo-500`}>KİM (Who)</h4>
+                <p className={`text-xs mt-2 leading-relaxed ${mutedClass}`}>
+                  Öğrenciler, yazılımcılar, araştırmacılar, akademisyenler ve okuma odağını en üst düzeye çıkararak zamandan tasarruf etmek isteyen tüm okurlar için uygundur.
+                </p>
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
+        )}
 
-      <div className={`rounded-2xl border ${currentTheme.border} ${currentTheme.cardBg} p-5`}>
-        <h3 className="text-base font-black">En iyi kullanım akışı</h3>
-        <ol className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs mt-4">
-          <li className="p-4 rounded-2xl bg-stone-100/50 dark:bg-zinc-950/40">1. Belgeyi Çalışma Alanı üzerinden ekle.</li>
-          <li className="p-4 rounded-2xl bg-stone-100/50 dark:bg-zinc-950/40">2. 250 WPM ve 1 kelime grubu ile başla.</li>
-          <li className="p-4 rounded-2xl bg-stone-100/50 dark:bg-zinc-950/40">3. Rahatladıkça hızı ve kelime grubunu artır.</li>
-          <li className="p-4 rounded-2xl bg-stone-100/50 dark:bg-zinc-950/40">4. Okuma sonrası not al ve kavrama sorularıyla kontrol et.</li>
-        </ol>
-      </div>
+        {guideTab === 'features' && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <h2 className={`text-lg font-black ${titleClass}`}>Özellikler & Pratik Kullanım Rehberi</h2>
+              <p className={`text-sm mt-1.5 leading-relaxed ${mutedClass}`}>
+                Uygulamanın arayüzlerini ve yeni eklenen gelişmiş dinamik modülleri nasıl kullanacağınızı öğrenin.
+              </p>
+            </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className={`rounded-2xl border ${currentTheme.border} ${currentTheme.cardBg} p-5`}>
-          <h3 className="text-base font-black">Teknik terimler sözlüğü</h3>
-          <dl className="text-xs flex flex-col gap-3 mt-4">
-            <div><dt className="font-bold">WPM</dt><dd className="opacity-70">Dakikada kelime sayısı.</dd></div>
-            <div><dt className="font-bold">RSVP</dt><dd className="opacity-70">Kelimeleri aynı odak noktasında sırayla gösterme tekniği.</dd></div>
-            <div><dt className="font-bold">ORP</dt><dd className="opacity-70">Kelimenin tanınmasını hızlandıran odak harfi.</dd></div>
-            <div><dt className="font-bold">Aktif Hatırlama</dt><dd className="opacity-70">Okunan bilgiyi tekrar okumadan zihinden geri çağırma çalışması.</dd></div>
-          </dl>
-        </div>
-        <div className={`rounded-2xl border ${currentTheme.border} ${currentTheme.cardBg} p-5`}>
-          <h3 className="text-base font-black">Dikkat edilmesi gerekenler</h3>
-          <ul className="text-xs opacity-75 leading-relaxed flex flex-col gap-2 list-disc pl-4 mt-4">
-            <li>Hız arttıkça anlama düşüyorsa WPM değerini azalt.</li>
-            <li>Akademik metinlerde Akıllı Es açık ve kelime grubu düşük kalabilir.</li>
-            <li>Roman ve akıcı metinlerde kelime grubu artırılabilir.</li>
-            <li>Odak çizgisi dikkati dağıtıyorsa okuyucu araçlarından kapatılabilir.</li>
-          </ul>
-        </div>
+            <div className="space-y-4 text-xs mt-2">
+              <div className="flex flex-col gap-1.5">
+                <h3 className={`text-sm font-black ${titleClass}`}>1. RSVP Okuma Alanı ve Odak Modları</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  Navigasyondaki <strong>Okuma Alanı</strong> sekmesine tıklayarak RSVP okuyucusunu başlatabilirsiniz. Sol üstteki başlığa tıklayarak son okuduğunuz 10 doküman arasında canlı arama yapıp hızlıca geçiş yapabilirsiniz. Okuyucu ayarlarından Bionic Reading, Teleprompter veya Satır Modu gibi farklı odak modlarını seçebilirsiniz.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <h3 className={`text-sm font-black ${titleClass}`}>2. Bugünün Hedefleri ve Bağımsız Seriler (Streak)</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  Ana sayfadaki Hedefler kartında <strong>Okuma</strong>, <strong>Quiz</strong> ve <strong>Bilgi Kartı</strong> hedefleri için bağımsız takip checkbox'ları bulunur. Gösterilmesini istediğiniz hedefleri dinamik olarak gizleyip açabilirsiniz. Her hedefin serisi (streak) birbirinden bağımsız olarak gün gün hesaplanır.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <h3 className={`text-sm font-black ${titleClass}`}>3. Kişiselleştirilebilir Klavye Kısayolları</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  Ayarlar altındaki "Klavye Kısayolları" sekmesinden eylemlerin tuşlarını değiştirebilirsiniz. Çoklu tuş kombinasyonları (örneğin <code>Ctrl + Space</code> veya <code>Shift + ArrowRight</code>) tamamen desteklenir.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <h3 className={`text-sm font-black ${titleClass}`}>4. Veri Yönetimi</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  Kütüphane ve istatistiklerinizi JSON olarak yedekleyebilir, yedeği yükleyebilir, son N günden eski logları temizleyerek veritabanını optimize edebilir veya korumalı doğrulamayla tüm verileri sıfırlayabilirsiniz.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {guideTab === 'ai' && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <h2 className={`text-lg font-black ${titleClass}`}>Yapay Zeka (AI) Entegrasyon Kılavuzu</h2>
+              <p className={`text-sm mt-1.5 leading-relaxed ${mutedClass}`}>
+                Velox; Google Gemini, OpenAI, Anthropic Claude ve Lokal Ollama API'lerini tam olarak destekler.
+              </p>
+            </div>
+
+            <div className="space-y-4 text-xs mt-2">
+              <div className={`p-4 rounded-xl border ${softSurfaceClass} flex flex-col gap-2`}>
+                <h3 className={`text-sm font-black ${titleClass}`}>Google Gemini Entegrasyonu</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  1. Google AI Studio web sitesine gidin ve ücretsiz bir <strong>API Key</strong> oluşturun.<br />
+                  2. Ayarlar → Yapay Zeka panelinde "Google Gemini" seçeneğini işaretleyip API anahtarını yapıştırın.<br />
+                  3. Kaydettiğinizde belge analizi, zorluk tespiti ve otomatik test özellikleri hemen açılır.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass} flex flex-col gap-2`}>
+                <h3 className={`text-sm font-black ${titleClass}`}>OpenAI & Claude Entegrasyonu</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  API anahtarınızı kendi servis sağlayıcı panellerinizden (platform.openai.com veya console.anthropic.com) edinin ve ilgili alanlara girerek aktif hale getirin.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass} flex flex-col gap-2`}>
+                <h3 className={`text-sm font-black ${titleClass}`}>Lokal Modeller (Ollama)</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  1. Bilgisayarınızda Ollama'nın çalıştığından emin olun (genellikle <code>http://localhost:11434</code> adresinde çalışır).<br />
+                  2. Kullandığınız modeli (örneğin <code>gemma2</code> veya <code>llama3</code>) Ollama üzerinden bilgisayarınıza indirin.<br />
+                  3. Ayarlar sayfasında model adını ve lokal URL'i yazarak lokal yapay zekayı kullanmaya başlayın.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {guideTab === 'glossary' && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <h2 className={`text-lg font-black ${titleClass}`}>Teknik Terimler Sözlüğü</h2>
+              <p className={`text-sm mt-1.5 leading-relaxed ${mutedClass}`}>
+                Velox içerisinde karşılaşabileceğiniz bilimsel ve teknik kavramların tanımları.
+              </p>
+            </div>
+
+            <div className="border border-stone-200 dark:border-zinc-800 rounded-xl overflow-hidden mt-2 text-xs">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-stone-50 dark:bg-zinc-900/40 border-b border-stone-200 dark:border-zinc-800 font-black">
+                    <th className="p-3">Terim</th>
+                    <th className="p-3">Açıklama</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100 dark:divide-zinc-900">
+                  <tr>
+                    <td className="p-3 font-bold">WPM (Words Per Minute)</td>
+                    <td className="p-3 opacity-90">Dakika başına okunan kelime sayısıdır. RSVP vizörünün kelime akış hızını tanımlar.</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 font-bold">RSVP (Rapid Serial Visual Presentation)</td>
+                    <td className="p-3 opacity-90">Kelimeleri veya kelime gruplarını ekranın tam merkezinde sırayla göstererek göz taramasını azaltan görsel sunum tekniğidir.</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 font-bold">ORP (Optimal Recognition Point)</td>
+                    <td className="p-3 opacity-90">Gözün kelimeyi en kısa sürede tanıması için kelimenin merkezine yakın harfin kırmızı/renkli olarak vurgulanması tekniğidir.</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 font-bold">Leitner Sistemi</td>
+                    <td className="p-3 opacity-90">Bilgi kartlarının 5 kutuda tutulduğu, her doğru tahminde kartın bir üst kutuya çıkarak tekrar sıklığının azaltıldığı sistematik hafıza algoritmasıdır.</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 font-bold">Bionic Reading (Biyonik Okuma)</td>
+                    <td className="p-3 opacity-90">Kelimenin ilk birkaç harfinin kalınlaştırılarak gözün kelimeyi daha hızlı yakalamasını sağlayan okuma tipografisidir.</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 font-bold">Akıllı Es (Smart Pauses)</td>
+                    <td className="p-3 opacity-90">Nokta, virgül, ünlem gibi işaretlerde ve çok uzun kelimelerde RSVP akışının kısa milisaniyeler boyunca duraklamasını sağlayan yapay ritim asistanıdır.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {guideTab === 'faqs' && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <h2 className={`text-lg font-black ${titleClass}`}>Teknik Sorunlar & Sıkça Sorulan Sorular</h2>
+              <p className={`text-sm mt-1.5 leading-relaxed ${mutedClass}`}>
+                Karşılaşabileceğiniz sorunlar ve hızlı pratik çözüm önerileri.
+              </p>
+            </div>
+
+            <div className="space-y-4 text-xs mt-2">
+              <div className="flex flex-col gap-1">
+                <h4 className={`font-bold ${titleClass}`}>S: Yapay zeka butonlarına bastığımda hata alıyorum, neden?</h4>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  C: API anahtarınızın doğruluğunu, kotasının tükenip tükenmediğini veya internet bağlantınızı kontrol edin. Lokal Ollama kullanıyorsanız Ollama uygulamasının arka planda açık ve modelin yüklenmiş olduğundan emin olun.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <h4 className={`font-bold ${titleClass}`}>S: Kısayol tuşları çalışmıyor ne yapmalıyım?</h4>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  C: Ayarlar → Klavye Kısayolları sekmesine girip çakışan veya çalışmayan kısayolu yeniden atayın. Ayrıca yazı alanlarında (input/textarea) odağınız varken kısayolların devre dışı kaldığını unutmayın.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <h4 className={`font-bold ${titleClass}`}>S: İlerleme veya Kart grafiği boş görünüyor?</h4>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  C: Grafik üstündeki filtre butonlarından (Günlük, Haftalık, Aylık vb.) doğru zaman aralığının seçili olduğundan emin olun. Kartların grafikte görünmesi için sisteme kart eklenmiş ve en az bir kere çalışılmış veya kütüphanede bulunuyor olması gerekir.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <h4 className={`font-bold ${titleClass}`}>S: Verilerimi başka bir bilgisayara nasıl taşırım?</h4>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  C: Ayarlar → Veri Yönetimi sekmesinden "Yedek Dosyası İndir" butonuna tıklayarak verilerinizi alın, ardından yeni bilgisayardaki Velox uygulamasında aynı panelden "Yedek Yükle" diyerek yükleyin.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {guideTab === 'limits' && (
+          <div className="flex flex-col gap-5">
+            <div>
+              <h2 className={`text-lg font-black ${titleClass}`}>Uygulamanın Teknik Sınırları</h2>
+              <p className={`text-sm mt-1.5 leading-relaxed ${mutedClass}`}>
+                Uygulamanın kararlı çalışabilmesi için belirlenmiş teknik sınırlar ve kısıtlamalar.
+              </p>
+            </div>
+
+            <div className="space-y-4 text-xs mt-2">
+              <div className="flex flex-col gap-1">
+                <h3 className={`font-bold ${titleClass}`}>Lokal Depolama (Local Storage) Limiti</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  Velox verileri bilgisayarınızın yerel depolama alanında saklar. Bu sınır genellikle 5MB ile 10MB arasındadır. Çok fazla uzun doküman yükleyip notlar aldığınızda bu sınır aşılabilir. Performans kaybı yaşamamak için Ayarlar → Veri Yönetimi kısmından eski loglarınızı optimize edip temizlemeniz önerilir.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <h3 className={`font-bold ${titleClass}`}>AI API Kota Sınırları</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  Ücretsiz Gemini API anahtarları genellikle dakikada 15 istek sınırı barındırır. "Rapor Üret" veya "Özet Çıkar" butonlarına çok hızlı arka arkaya basıldığında <code>429 (Too Many Requests)</code> hatası alabilirsiniz. Bu durumda birkaç saniye bekleyip tekrar deneyin.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <h3 className={`font-bold ${titleClass}`}>Desteklenen Belge Biçimleri</h3>
+                <p className={`leading-relaxed ${mutedClass}`}>
+                  Velox şu an için kararlı bir şekilde düz metin (.txt) yüklemeyi ve doğrudan kopyala-yapıştır ile metin eklemeyi destekler. Çok sütunlu veya karmaşık PDF dosyalarının içindeki metin kaymaları okuma hızınızı etkileyebileceğinden, metinleri kütüphaneye eklemeden önce temizlemeniz önerilir.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
