@@ -6,6 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookMark, ThemeType, THEMES, ReadingMode, ThemeConfig } from '../types';
 import { calculateOrp } from '../utils/parsers';
+import { useTranslation } from '../utils/i18n';
 import {
   ChevronLeft,
   ChevronDown,
@@ -35,14 +36,6 @@ interface SpeedReaderProps {
   aiEnabled?: boolean;
 }
 
-const MODE_LABELS: Record<ReadingMode, string> = {
-  center: 'Merkez Modu (RSVP)',
-  line: 'Satır Modu (Linear)',
-  teleprompter: 'Teleprompter',
-  bionic: 'Bionic Reading',
-  highlight: 'Paragraf Vurgu'
-};
-
 export default function SpeedReader({
   book,
   books = [],
@@ -51,9 +44,18 @@ export default function SpeedReader({
   onClose,
   onUpdateProgress
 }: SpeedReaderProps) {
+  const { t, lang } = useTranslation();
   const currentTheme: ThemeConfig = THEMES[themeType] || THEMES.dark;
   const words = useMemo(() => book.content.trim().split(/\s+/).filter(Boolean), [book.content]);
   const totalWords = words.length;
+
+  const modeLabels: Record<ReadingMode, string> = {
+    center: lang === 'tr' ? 'Merkez Modu (RSVP)' : 'Center Mode (RSVP)',
+    line: lang === 'tr' ? 'Satır Modu (Linear)' : 'Line Mode (Linear)',
+    teleprompter: 'Teleprompter',
+    bionic: 'Bionic Reading',
+    highlight: lang === 'tr' ? 'Paragraf Vurgu' : 'Paragraph Highlight'
+  };
 
   const [showBookSelector, setShowBookSelector] = useState(false);
   const [bookSearchQuery, setBookSearchQuery] = useState('');
@@ -618,7 +620,7 @@ export default function SpeedReader({
               </div>
 
               <div className="flex items-center justify-start lg:justify-end gap-2 min-w-0 overflow-x-auto">
-                <span className="text-xs opacity-75 font-semibold whitespace-nowrap">Odak Modu:</span>
+                <span className="text-xs opacity-75 font-semibold whitespace-nowrap">{lang === 'tr' ? 'Odak Modu:' : 'Focus Mode:'}</span>
                 <select
                   value={readingMode}
                   onChange={(event) => setReadingMode(event.target.value as ReadingMode)}
@@ -628,7 +630,7 @@ export default function SpeedReader({
                     color: themeType === 'dark' || themeType === 'amoled' ? '#f4f4f5' : '#111827'
                   }}
                 >
-                  {Object.entries(MODE_LABELS).map(([value, label]) => (
+                  {Object.entries(modeLabels).map(([value, label]) => (
                     <option
                       key={value}
                       value={value}
@@ -642,9 +644,9 @@ export default function SpeedReader({
                     </option>
                   ))}
                 </select>
-                {readingMode === 'center' && groupSize === 1 && <button onClick={() => setIsOrp(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${isOrp ? 'bg-amber-500/10 border-amber-500/40 text-amber-400' : 'opacity-50'}`} title="Optimal Tanıma Noktası: kelimenin gözün en hızlı yakaladığı harfini vurgular">ORP</button>}
-                {readingMode === 'center' && groupSize === 1 && <button onClick={() => setShowFocusGuides(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${showFocusGuides ? 'bg-[#4A6CFF]/10 border-[#4A6CFF]/35 text-[#4A6CFF]' : 'opacity-50'}`} title="Kelimenin merkezindeki odak çizgilerini göster veya gizle" aria-pressed={showFocusGuides}>Odak Çizgisi</button>}
-                <button onClick={() => setSmartPauses(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${smartPauses ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'opacity-50'}`} title="Nokta, virgül ve uzun kelimelerde kısa doğal duraklamalar ekler">Akıllı Es</button>
+                {readingMode === 'center' && groupSize === 1 && <button onClick={() => setIsOrp(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${isOrp ? 'bg-amber-500/10 border-amber-500/40 text-amber-400' : 'opacity-50'}`} title={lang === 'tr' ? 'Optimal Tanıma Noktası: kelimenin gözün en hızlı yakaladığı harfini vurgular' : 'Optimal Recognition Point: highlights the easiest letter to recognize'}>ORP</button>}
+                {readingMode === 'center' && groupSize === 1 && <button onClick={() => setShowFocusGuides(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${showFocusGuides ? 'bg-[#4A6CFF]/10 border-[#4A6CFF]/35 text-[#4A6CFF]' : 'opacity-50'}`} title={lang === 'tr' ? 'Kelimenin merkezindeki odak çizgilerini göster veya gizle' : 'Show or hide center focus guides'} aria-pressed={showFocusGuides}>{lang === 'tr' ? 'Odak Çizgisi' : 'Focus Guide'}</button>}
+                <button onClick={() => setSmartPauses(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${smartPauses ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'opacity-50'}`} title={lang === 'tr' ? 'Nokta, virgül ve uzun kelimelerde kısa doğal duraklamalar ekler' : 'Adds natural pauses at punctuation or long words'}>{lang === 'tr' ? 'Akıllı Es' : 'Smart Pause'}</button>
               </div>
             </div>
           </div>
