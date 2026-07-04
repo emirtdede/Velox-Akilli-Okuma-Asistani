@@ -900,18 +900,18 @@ function Sidebar({
       <div className="h-full flex flex-col justify-between p-4">
         <div className="flex flex-col gap-4">
           <div className={`flex items-center ${isFull ? 'justify-between' : 'justify-center'} gap-3 min-w-0`}>
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
                 onClick={() => isCompact && onSetMode('full')}
                 title={isCompact ? 'Menüyü genişlet' : APP_NAME}
-                className={`${isCompact ? 'cursor-pointer group/brand' : 'cursor-default'} relative h-11 w-11 grid place-items-center bg-transparent shrink-0 overflow-hidden`}
+                className={`${isCompact ? 'cursor-pointer group/brand' : 'cursor-default'} relative h-12 w-12 grid place-items-center bg-transparent shrink-0 overflow-hidden`}
               >
-                <img src="/velox-icon.svg" alt="Velox" className={`${isCompact ? 'group-hover/brand:opacity-0' : ''} w-10 h-10 object-contain transition-opacity`} />
+                <img src="/velox-icon.svg" alt="Velox" className={`${isCompact ? 'group-hover/brand:opacity-0' : ''} w-12 h-12 object-contain transition-opacity`} />
                 {isCompact && <ChevronsRight className="absolute w-5 h-5 opacity-0 group-hover/brand:opacity-100 transition-opacity text-indigo-500" />}
               </button>
               <div className={`${labelClass} transition-all duration-200 min-w-0 overflow-hidden`}>
-              <h1 className="text-lg font-black tracking-tight text-indigo-500">Velox</h1>
+              <h1 className="text-lg font-black tracking-tight text-indigo-500 leading-tight">Velox</h1>
               <p className="text-[10px] opacity-65 whitespace-nowrap">{APP_DESCRIPTION}</p>
               </div>
             </div>
@@ -2544,19 +2544,19 @@ function AboutPage({
   };
 
   return (
-    <section className="flex flex-col items-center justify-center py-6 px-4 max-w-3xl mx-auto w-full">
+    <section className="flex flex-col items-center justify-center py-4 px-4 max-w-3xl mx-auto w-full">
       {/* App Logo & Name */}
-      <div className="flex flex-col items-center text-center gap-3">
-        <img src="/velox-icon.svg" alt="Velox Logo" className="w-36 h-36 object-contain" />
-        <h2 className={`text-3xl font-black tracking-tight mt-2 ${titleClass}`}>Velox</h2>
+      <div className="flex flex-col items-center text-center gap-2">
+        <img src="/velox-icon.svg" alt="Velox Logo" className="w-48 h-48 object-contain" />
+        <h2 className={`text-3xl font-black tracking-tight ${titleClass}`}>Velox</h2>
         <p className={`text-xs font-mono opacity-60`}>v{APP_VERSION}</p>
-        <p className={`text-sm mt-2 max-w-md leading-relaxed ${mutedClass}`}>
+        <p className={`text-sm mt-1 max-w-md leading-relaxed ${mutedClass}`}>
           Okuma verimliliğinizi optimize eden, belgelerinizi analiz eden ve notlarınızı yöneten modern ve sade bir yazılım.
         </p>
       </div>
 
       {/* Developer Card */}
-      <div className={`w-full mt-8 rounded-2xl border p-4 ${surfaceClass} flex items-center justify-between gap-4`}>
+      <div className={`w-full mt-6 rounded-2xl border p-4 ${surfaceClass} flex items-center justify-between gap-4`}>
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 rounded-xl bg-indigo-500/10 border border-indigo-500/30 grid place-items-center shrink-0 shadow-[0_0_12px_rgba(99,102,241,0.15)]">
             <img src="/vellium-icon.svg" alt="Vellium Logo" className="w-7 h-7 filter drop-shadow-[0_0_4px_rgba(129,140,248,0.6)]" />
