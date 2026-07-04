@@ -2546,11 +2546,10 @@ function AboutPage({
   return (
     <section className="flex flex-col items-center justify-center py-4 px-4 max-w-3xl mx-auto w-full">
       {/* App Logo & Name */}
-      <div className="flex flex-col items-center text-center gap-2">
-        <img src="/velox-icon.svg" alt="Velox Logo" className="w-48 h-48 object-contain" />
+      <div className="flex flex-col items-center text-center">
+        <img src="/velox-icon.svg" alt="Velox Logo" className="w-48 h-48 object-contain -mb-5" />
         <h2 className={`text-3xl font-black tracking-tight ${titleClass}`}>Velox</h2>
-        <p className={`text-xs font-mono opacity-60`}>v{APP_VERSION}</p>
-        <p className={`text-sm mt-1 max-w-md leading-relaxed ${mutedClass}`}>
+        <p className={`text-sm mt-2 max-w-md leading-relaxed ${mutedClass}`}>
           Okuma verimliliğinizi optimize eden, belgelerinizi analiz eden ve notlarınızı yöneten modern ve sade bir yazılım.
         </p>
       </div>
