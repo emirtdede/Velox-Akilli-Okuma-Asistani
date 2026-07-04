@@ -1121,6 +1121,12 @@ function HomePage({
   const quizPercentage = Math.min(100, Math.round((todayQuizzesCount / Math.max(1, userGoals.dailyQuizzes)) * 100));
   const cardPercentage = Math.min(100, Math.round((todayCardsCount / Math.max(1, userGoals.dailyCards)) * 100));
 
+  const visibleGoalsCount = [
+    userGoals.showReadingGoal !== false,
+    userGoals.showQuizzesGoal !== false,
+    userGoals.showCardsGoal !== false
+  ].filter(Boolean).length;
+
   // Core Metrics derived from stats
   const totalWords = stats.totalWordsRead || 0;
   const maxWpm = stats.maxSpeedWpm || 0;
@@ -1354,74 +1360,87 @@ function HomePage({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
-              {userGoals.showReadingGoal === false && userGoals.showQuizzesGoal === false && userGoals.showCardsGoal === false && (
+            <div>
+              {userGoals.showReadingGoal === false && userGoals.showQuizzesGoal === false && userGoals.showCardsGoal === false ? (
                 <p className={`text-xs text-center py-6 ${mutedClass}`}>Tüm hedefler gizlendi. Düzenlemek için sağ üstten "Hedefleri Düzenle" butonuna tıklayabilirsiniz.</p>
-              )}
+              ) : (
+                <div className={`grid grid-cols-1 ${
+                  visibleGoalsCount === 2 ? 'md:grid-cols-2' : visibleGoalsCount === 3 ? 'md:grid-cols-3' : ''
+                } gap-4`}>
+                  {/* Kelime Hedefi */}
+                  {userGoals.showReadingGoal !== false && (
+                    <div className={`p-4 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3 transition-all hover:scale-[1.01]`}>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5 font-black text-xs text-current">
+                          <BookOpen className="w-4 h-4 text-indigo-500" />
+                          Okuma
+                        </span>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 text-[10px] font-black shrink-0">
+                          <Flame className="w-3 h-3 fill-amber-500" />
+                          <span>{stats.dailyStreak || 0} Gün</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="h-2 rounded-full bg-stone-250 dark:bg-zinc-800 overflow-hidden">
+                          <div className="h-full rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${wordPercentage}%` }} />
+                        </div>
+                        <div className={`flex justify-between text-[10px] font-bold ${mutedClass}`}>
+                          <span>{todayWords} / {userGoals.dailyWords.toLocaleString()} Kelime</span>
+                          <span>%{wordPercentage}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-              {/* Kelime Hedefi */}
-              {userGoals.showReadingGoal !== false && (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 flex flex-col gap-1">
-                    <div className="flex justify-between text-xs font-bold">
-                      <span className="flex items-center gap-1.5 text-current">
-                        <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
-                        Okuma
-                      </span>
-                      <span className={mutedClass}>{todayWords} / {userGoals.dailyWords.toLocaleString()} Kelime (%{wordPercentage})</span>
+                  {/* Quiz Hedefi */}
+                  {userGoals.showQuizzesGoal !== false && (
+                    <div className={`p-4 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3 transition-all hover:scale-[1.01]`}>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5 font-black text-xs text-current">
+                          <HelpCircle className="w-4 h-4 text-pink-500" />
+                          Quizler
+                        </span>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-pink-500/10 text-pink-500 text-[10px] font-black shrink-0">
+                          <Flame className="w-3 h-3 fill-pink-500" />
+                          <span>{stats.quizStreak || 0} Gün</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="h-2 rounded-full bg-stone-250 dark:bg-zinc-800 overflow-hidden">
+                          <div className="h-full rounded-full bg-pink-500 transition-all duration-300" style={{ width: `${quizPercentage}%` }} />
+                        </div>
+                        <div className={`flex justify-between text-[10px] font-bold ${mutedClass}`}>
+                          <span>{todayQuizzesCount} / {userGoals.dailyQuizzes.toLocaleString()} Quiz</span>
+                          <span>%{quizPercentage}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
-                      <div className="h-full rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${wordPercentage}%` }} />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-xl bg-amber-500/10 text-amber-500 text-[10px] font-black shrink-0">
-                    <Flame className="w-3 h-3 fill-amber-500" />
-                    <span>{stats.dailyStreak || 0} Gün</span>
-                  </div>
-                </div>
-              )}
+                  )}
 
-              {/* Quiz Hedefi */}
-              {userGoals.showQuizzesGoal !== false && (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 flex flex-col gap-1">
-                    <div className="flex justify-between text-xs font-bold">
-                      <span className="flex items-center gap-1.5 text-current">
-                        <HelpCircle className="w-3.5 h-3.5 text-pink-500" />
-                        Quizler
-                      </span>
-                      <span className={mutedClass}>{todayQuizzesCount} / {userGoals.dailyQuizzes.toLocaleString()} Quiz (%{quizPercentage})</span>
+                  {/* Bilgi Kartı Hedefi */}
+                  {userGoals.showCardsGoal !== false && (
+                    <div className={`p-4 rounded-2xl border ${softSurfaceClass} flex flex-col justify-between gap-3 transition-all hover:scale-[1.01]`}>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5 font-black text-xs text-current">
+                          <Layers className="w-4 h-4 text-emerald-500" />
+                          Bilgi Kartı
+                        </span>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-black shrink-0">
+                          <Flame className="w-3 h-3 fill-emerald-500" />
+                          <span>{stats.cardStreak || 0} Gün</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="h-2 rounded-full bg-stone-250 dark:bg-zinc-800 overflow-hidden">
+                          <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${cardPercentage}%` }} />
+                        </div>
+                        <div className={`flex justify-between text-[10px] font-bold ${mutedClass}`}>
+                          <span>{todayCardsCount} / {userGoals.dailyCards.toLocaleString()} Kart</span>
+                          <span>%{cardPercentage}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
-                      <div className="h-full rounded-full bg-pink-500 transition-all duration-300" style={{ width: `${quizPercentage}%` }} />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-xl bg-pink-500/10 text-pink-500 text-[10px] font-black shrink-0">
-                    <Flame className="w-3 h-3 fill-pink-500" />
-                    <span>{stats.quizStreak || 0} Gün</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Bilgi Kartı Hedefi */}
-              {userGoals.showCardsGoal !== false && (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 flex flex-col gap-1">
-                    <div className="flex justify-between text-xs font-bold">
-                      <span className="flex items-center gap-1.5 text-current">
-                        <Layers className="w-3.5 h-3.5 text-emerald-500" />
-                        Bilgi Kartı
-                      </span>
-                      <span className={mutedClass}>{todayCardsCount} / {userGoals.dailyCards.toLocaleString()} Kart (%{cardPercentage})</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-stone-200 dark:bg-zinc-800 overflow-hidden">
-                      <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${cardPercentage}%` }} />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-black shrink-0">
-                    <Flame className="w-3 h-3 fill-emerald-500" />
-                    <span>{stats.cardStreak || 0} Gün</span>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
