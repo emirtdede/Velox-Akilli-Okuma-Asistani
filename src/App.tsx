@@ -1099,7 +1099,7 @@ function HomePage({
         
         {/* Active Document Card */}
         <div className={`p-6 rounded-3xl border relative flex flex-col justify-between overflow-hidden min-h-[200px] ${surfaceClass}`}>
-          <BookOpen className="absolute right-6 top-1/2 -translate-y-1/2 w-32 h-32 opacity-[0.02] dark:opacity-[0.03] pointer-events-none" />
+          <img src="/velox-icon.svg" alt="Watermark" className="absolute right-6 top-1/2 -translate-y-1/2 w-32 h-32 opacity-[0.03] dark:opacity-[0.05] pointer-events-none object-contain" />
 
           <div className="flex flex-col gap-2 relative z-10">
             <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-500/10 px-2.5 py-1 rounded-full w-max">
