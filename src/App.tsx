@@ -845,7 +845,6 @@ export default function App() {
               }}
               onAddDocument={() => setIsAddOpen(true)}
               showAlert={showCustomAlert}
-              setStats={setStats}
             />
           )}
 
@@ -906,6 +905,7 @@ export default function App() {
               setQuizHistory={setQuizHistory}
               flashcards={flashcards}
               setFlashcards={setFlashcards}
+              setStats={setStats}
             />
           )}
 
@@ -2139,7 +2139,6 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
 }
 
 function WorkspacePage({
-  setStats,
   books,
   filteredBooks,
   selectedBook,
@@ -2229,7 +2228,6 @@ function WorkspacePage({
   setEditContent: (val: string) => void;
   refreshBooks: () => void;
   showAlert: (message: string, title?: string) => void;
-  setStats: React.Dispatch<React.SetStateAction<any>>;
 }) {
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -3488,7 +3486,8 @@ function RecallQuizPage({
   quizHistory,
   setQuizHistory,
   flashcards,
-  setFlashcards
+  setFlashcards,
+  setStats
 }: any) {
   const [subTab, setSubTab] = useState<'quiz-builder' | 'quiz-library' | 'flashcards' | 'flashcards-library' | 'flashcards-manager'>('quiz-builder');
   const [activeExportQuizId, setActiveExportQuizId] = useState<string | null>(null);
