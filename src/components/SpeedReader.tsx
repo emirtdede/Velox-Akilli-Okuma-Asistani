@@ -9,6 +9,7 @@ import { calculateOrp } from '../utils/parsers';
 import {
   ChevronLeft,
   ChevronDown,
+  Search,
   Keyboard,
   Pause,
   Play,
@@ -55,7 +56,23 @@ export default function SpeedReader({
   const totalWords = words.length;
 
   const [showBookSelector, setShowBookSelector] = useState(false);
+  const [bookSearchQuery, setBookSearchQuery] = useState('');
   const bookSelectorRef = useRef<HTMLDivElement>(null);
+
+  const displayedBooks = useMemo(() => {
+    const sorted = [...books].sort((left, right) => {
+      const leftDate = left.lastReadDate || '';
+      const rightDate = right.lastReadDate || '';
+      return rightDate.localeCompare(leftDate);
+    });
+
+    if (!bookSearchQuery.trim()) {
+      return sorted.slice(0, 10);
+    }
+
+    const query = bookSearchQuery.toLowerCase();
+    return sorted.filter(b => b.title.toLowerCase().includes(query));
+  }, [books, bookSearchQuery]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -401,7 +418,10 @@ export default function SpeedReader({
             </button>
             <div className="relative min-w-0" ref={bookSelectorRef}>
               <button
-                onClick={() => setShowBookSelector(prev => !prev)}
+                onClick={() => {
+                  setShowBookSelector(prev => !prev);
+                  setBookSearchQuery('');
+                }}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl hover:bg-stone-100 dark:hover:bg-zinc-900 transition-all text-left min-w-0 cursor-pointer"
                 title="Metin değiştir"
               >
@@ -410,25 +430,42 @@ export default function SpeedReader({
               </button>
               {showBookSelector && books.length > 0 && (
                 <div className="absolute left-2 top-full mt-2 w-[280px] bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-2xl shadow-2xl py-1.5 z-50 max-h-[300px] overflow-y-auto">
-                  <div className="px-3 py-1 text-[9px] font-black uppercase text-stone-400 dark:text-zinc-500 border-b border-stone-100 dark:border-zinc-900 mb-1.5">
-                    Hızlı Seçim
+                  <div className="p-2 border-b border-stone-100 dark:border-zinc-900 flex items-center gap-1.5">
+                    <Search className="w-3.5 h-3.5 opacity-55 shrink-0" />
+                    <input
+                      type="text"
+                      value={bookSearchQuery}
+                      onChange={(e) => setBookSearchQuery(e.target.value)}
+                      placeholder="Belge ara..."
+                      className="w-full text-xs outline-none bg-transparent text-stone-900 dark:text-zinc-100 placeholder-stone-400"
+                      autoFocus
+                    />
                   </div>
-                  {books.map(b => (
-                    <button
-                      key={b.id}
-                      onClick={() => {
-                        onSwitchBook?.(b);
-                        setShowBookSelector(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors truncate block ${
-                        b.id === book.id
-                          ? 'bg-indigo-600 text-white'
-                          : 'hover:bg-stone-50 dark:hover:bg-zinc-900/60 text-stone-700 dark:text-zinc-300'
-                      }`}
-                    >
-                      {b.title}
-                    </button>
-                  ))}
+                  <div className="px-3 py-1 text-[9px] font-black uppercase text-stone-400 dark:text-zinc-500 border-b border-stone-100 dark:border-zinc-900 mb-1.5">
+                    {bookSearchQuery.trim() ? 'Arama Sonuçları' : 'Son Okunanlar (Maks 10)'}
+                  </div>
+                  {displayedBooks.length === 0 ? (
+                    <div className="px-3 py-4 text-xs text-center text-stone-400 dark:text-zinc-500 font-bold">
+                      Metin bulunamadı.
+                    </div>
+                  ) : (
+                    displayedBooks.map(b => (
+                      <button
+                        key={b.id}
+                        onClick={() => {
+                          onSwitchBook?.(b);
+                          setShowBookSelector(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors truncate block ${
+                          b.id === book.id
+                            ? 'bg-indigo-600 text-white'
+                            : 'hover:bg-stone-50 dark:hover:bg-zinc-900/60 text-stone-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        {b.title}
+                      </button>
+                    ))
+                  )}
                 </div>
               )}
               <div className="pl-2.5">
