@@ -239,17 +239,50 @@ export default function SpeedReader({
   }, []);
 
   useEffect(() => {
+    const matchShortcut = (e: KeyboardEvent, shortcutStr: string): boolean => {
+      if (!shortcutStr) return false;
+      const parts = shortcutStr.split(' + ').map(p => p.trim());
+      const hasCtrl = parts.includes('Ctrl');
+      const hasShift = parts.includes('Shift');
+      const hasAlt = parts.includes('Alt');
+      const hasMeta = parts.includes('Meta');
+      
+      const mainKey = parts.find(p => !['Ctrl', 'Shift', 'Alt', 'Meta'].includes(p)) || '';
+      
+      if (e.ctrlKey !== hasCtrl) return false;
+      if (e.shiftKey !== hasShift) return false;
+      if (e.altKey !== hasAlt) return false;
+      if (e.metaKey !== hasMeta) return false;
+      
+      const eventMainKey = e.code === 'Space' ? 'Space' : e.code;
+      return eventMainKey.toLowerCase() === mainKey.toLowerCase() || 
+             e.key.toLowerCase() === mainKey.toLowerCase();
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-      if (event.code === shortcuts.playPause) {
+      if (matchShortcut(event, shortcuts.playPause)) {
         event.preventDefault();
         setIsPlaying(prev => !prev);
       }
-      if (event.code === shortcuts.back10) handleNavigate(-10);
-      if (event.code === shortcuts.forward10) handleNavigate(10);
-      if (event.code === shortcuts.speedUp) setSpeedWpm(prev => Math.min(1500, prev + 25));
-      if (event.code === shortcuts.speedDown) setSpeedWpm(prev => Math.max(50, prev - 25));
-      if (event.code === shortcuts.exit) {
+      if (matchShortcut(event, shortcuts.back10)) {
+        event.preventDefault();
+        handleNavigate(-10);
+      }
+      if (matchShortcut(event, shortcuts.forward10)) {
+        event.preventDefault();
+        handleNavigate(10);
+      }
+      if (matchShortcut(event, shortcuts.speedUp)) {
+        event.preventDefault();
+        setSpeedWpm(prev => Math.min(1500, prev + 25));
+      }
+      if (matchShortcut(event, shortcuts.speedDown)) {
+        event.preventDefault();
+        setSpeedWpm(prev => Math.max(50, prev - 25));
+      }
+      if (matchShortcut(event, shortcuts.exit)) {
+        event.preventDefault();
         if (isZenMode) {
           setIsZenMode(false);
         } else {

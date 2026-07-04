@@ -1870,7 +1870,7 @@ function ProgressPage({
     cutoff.setHours(0, 0, 0, 0);
 
     return flashcards.filter((c: any) => {
-      if (!c.lastReviewed) return false;
+      if (!c.lastReviewed) return true;
       const rDate = parseCustomDate(c.lastReviewed);
       if (cardProgressRange === 'custom') {
         const start = new Date(customStartDate);
@@ -3166,11 +3166,23 @@ function SettingsPage({
     if (!recordingKey) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
-      const newCode = e.code;
-      const next = { ...shortcuts, [recordingKey]: newCode };
-      setShortcuts(next);
-      localStorage.setItem('velox_shortcuts', JSON.stringify(next));
-      setRecordingKey(null);
+      
+      const keys: string[] = [];
+      if (e.ctrlKey && e.key !== 'Control') keys.push('Ctrl');
+      if (e.shiftKey && e.key !== 'Shift') keys.push('Shift');
+      if (e.altKey && e.key !== 'Alt') keys.push('Alt');
+      if (e.metaKey && e.key !== 'Meta') keys.push('Meta');
+      
+      if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        const mainKey = e.code === 'Space' ? 'Space' : e.code;
+        keys.push(mainKey);
+        
+        const shortcutStr = keys.join(' + ');
+        const next = { ...shortcuts, [recordingKey]: shortcutStr };
+        setShortcuts(next);
+        localStorage.setItem('velox_shortcuts', JSON.stringify(next));
+        setRecordingKey(null);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
