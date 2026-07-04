@@ -83,7 +83,7 @@ const legacyNoteKeyForBook = (bookId: string) => `readflow_notes_text_${bookId}`
 
 const LazyPanelFallback = () => <div className="p-4 text-xs opacity-60">Yükleniyor...</div>;
 
-type AppTab = 'home' | 'progress' | 'workspace' | 'quiz' | 'guide' | 'settings' | 'about';
+type AppTab = 'home' | 'progress' | 'workspace' | 'quiz' | 'guide' | 'settings' | 'about' | 'reader';
 type WorkspaceTab = 'content' | 'notes' | 'analysis' | 'actions';
 type SettingsTab = 'appearance' | 'ai';
 type BookFilter = 'all' | 'active' | 'completed';
@@ -93,6 +93,7 @@ const SIDEBAR_PREFS_KEY = 'velox_sidebar_pref';
 
 const NAV_ITEMS = [
   { tab: 'home' as AppTab, icon: Home, label: 'Anasayfa' },
+  { tab: 'reader' as AppTab, icon: BookOpen, label: 'Okuma Alanı' },
   { tab: 'workspace' as AppTab, icon: LibraryBig, label: 'Çalışma Alanı', bookAware: true },
   { tab: 'quiz' as AppTab, icon: Brain, label: 'Hatırlama & Quiz' },
   { tab: 'progress' as AppTab, icon: Activity, label: 'İlerleme & Gelişim' },
@@ -154,6 +155,7 @@ function parseRoute(pathname = typeof window !== 'undefined' ? window.location.p
 
 function pathForTab(tab: AppTab, bookId?: string | null) {
   if (tab === 'workspace') return bookId ? `/workspace/${encodeURIComponent(bookId)}` : '/workspace';
+  if (tab === 'reader') return bookId ? `/reader/${encodeURIComponent(bookId)}` : '/reader';
   if (tab === 'quiz') return '/quiz';
   if (tab === 'settings') return '/settings';
   if (tab === 'guide') return '/guide';
@@ -515,6 +517,15 @@ export default function App() {
   }, [aiProvider, geminiApiKey, openaiApiKey, claudeApiKey, localUrl, localModel]);
 
   const navigateToTab = (tab: AppTab, bookId?: string | null, replace = false) => {
+    if (tab === 'reader') {
+      const bId = bookId || selectedBookId || (books.length > 0 ? books[0].id : null);
+      const b = books.find(x => x.id === bId) || books[0];
+      if (!b) {
+        showCustomAlert("Okuma yapabilmek için lütfen önce kütüphanenize bir belge ekleyin.", "Belge Gerekli");
+        return;
+      }
+      setActiveBook(b);
+    }
     setActiveTab(tab);
     if (bookId) setSelectedBookId(bookId);
     const nextPath = pathForTab(tab, bookId);
@@ -940,6 +951,12 @@ export default function App() {
         <Suspense fallback={<LazyPanelFallback />}>
           <SpeedReader
             book={activeBook}
+            books={books}
+            onSwitchBook={(newBook) => {
+              setSelectedBookId(newBook.id);
+              setActiveBook(newBook);
+              window.history.replaceState(null, '', `/reader/${encodeURIComponent(newBook.id)}`);
+            }}
             themeType={currentThemeType}
             onClose={handleCloseReader}
             onUpdateProgress={handleReaderProgressUpdate}

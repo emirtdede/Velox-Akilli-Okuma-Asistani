@@ -8,6 +8,7 @@ import { BookMark, ThemeType, THEMES, ReadingMode, ThemeConfig } from '../types'
 import { calculateOrp } from '../utils/parsers';
 import {
   ChevronLeft,
+  ChevronDown,
   Keyboard,
   Pause,
   Play,
@@ -23,6 +24,8 @@ import {
 
 interface SpeedReaderProps {
   book: BookMark;
+  books?: BookMark[];
+  onSwitchBook?: (book: BookMark) => void;
   themeType: ThemeType;
   onClose: () => void;
   onUpdateProgress: (index: number, progressPercent: number, speed: number, groupSize: number) => void;
@@ -41,6 +44,8 @@ const MODE_LABELS: Record<ReadingMode, string> = {
 
 export default function SpeedReader({
   book,
+  books = [],
+  onSwitchBook,
   themeType,
   onClose,
   onUpdateProgress
@@ -49,9 +54,30 @@ export default function SpeedReader({
   const words = useMemo(() => book.content.trim().split(/\s+/).filter(Boolean), [book.content]);
   const totalWords = words.length;
 
+  const [showBookSelector, setShowBookSelector] = useState(false);
+  const bookSelectorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (bookSelectorRef.current && !bookSelectorRef.current.contains(event.target as Node)) {
+        setShowBookSelector(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const [currentIndex, setCurrentIndex] = useState(book.currentWordIndex || 0);
   const [speedWpm, setSpeedWpm] = useState(book.speedWpm || 250);
   const [groupSize, setGroupSize] = useState(book.groupSize || 1);
+
+  useEffect(() => {
+    setCurrentIndex(book.currentWordIndex || 0);
+    setSpeedWpm(book.speedWpm || 250);
+    setGroupSize(book.groupSize || 1);
+    setIsPlaying(false);
+  }, [book]);
+
   const [readingMode, setReadingMode] = useState<ReadingMode>('center');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isOrp, setIsOrp] = useState(true);
@@ -373,9 +399,41 @@ export default function SpeedReader({
             <button onClick={onClose} className={`p-2 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg} hover:opacity-80 transition-all cursor-pointer`} title="Okuyucudan çık">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <div className="min-w-0">
-              <h3 className="font-bold text-sm tracking-tight truncate max-w-xs md:max-w-md">{book.title}</h3>
-              <span className="text-[10px] font-mono opacity-75">İlerleme: %{progressPercent} ({currentIndex}/{totalWords} kelime)</span>
+            <div className="relative min-w-0" ref={bookSelectorRef}>
+              <button
+                onClick={() => setShowBookSelector(prev => !prev)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl hover:bg-stone-100 dark:hover:bg-zinc-900 transition-all text-left min-w-0 cursor-pointer"
+                title="Metin değiştir"
+              >
+                <span className="font-bold text-sm tracking-tight truncate max-w-xs md:max-w-md">{book.title}</span>
+                <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
+              </button>
+              {showBookSelector && books.length > 0 && (
+                <div className="absolute left-2 top-full mt-2 w-[280px] bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-2xl shadow-2xl py-1.5 z-50 max-h-[300px] overflow-y-auto">
+                  <div className="px-3 py-1 text-[9px] font-black uppercase text-stone-400 dark:text-zinc-500 border-b border-stone-100 dark:border-zinc-900 mb-1.5">
+                    Hızlı Seçim
+                  </div>
+                  {books.map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => {
+                        onSwitchBook?.(b);
+                        setShowBookSelector(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors truncate block ${
+                        b.id === book.id
+                          ? 'bg-indigo-600 text-white'
+                          : 'hover:bg-stone-50 dark:hover:bg-zinc-900/60 text-stone-700 dark:text-zinc-300'
+                      }`}
+                    >
+                      {b.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="pl-2.5">
+                <span className="text-[10px] font-mono opacity-75">İlerleme: %{progressPercent} ({currentIndex}/{totalWords} kelime)</span>
+              </div>
             </div>
           </div>
 
@@ -411,14 +469,19 @@ export default function SpeedReader({
       {!isZenMode && (
         <footer className={`px-5 md:px-6 py-3 border-t ${currentTheme.border} ${currentTheme.cardBg} flex flex-col gap-3 shrink-0`}>
           <div className="max-w-7xl mx-auto w-full flex flex-col gap-3">
-            <input
-              type="range"
-              min={0}
-              max={totalWords}
-              value={currentIndex}
-              onChange={(event) => setCurrentIndex(parseInt(event.target.value, 10))}
-              className="w-full h-1 bg-stone-200/60 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#4A6CFF] outline-none"
-            />
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={0}
+                max={totalWords}
+                value={currentIndex}
+                onChange={(event) => setCurrentIndex(parseInt(event.target.value, 10))}
+                className="flex-1 h-1.5 bg-stone-200/60 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#4A6CFF] outline-none"
+              />
+              <span className="text-[10px] font-mono opacity-80 whitespace-nowrap bg-stone-100 dark:bg-zinc-900 border border-stone-200 dark:border-zinc-800 px-2 py-1 rounded-lg shrink-0">
+                İlerleme: %{progressPercent} ({currentIndex}/{totalWords} kelime)
+              </span>
+            </div>
 
             {showTools && (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-[11px] border-b border-zinc-850/60 pb-3">
