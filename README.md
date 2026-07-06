@@ -107,12 +107,6 @@ To package Velox as a standalone Windows application installer:
 npm run electron:build
 ```
 *💡 Output executable installer `Velox Setup 1.0.0.exe` and unpacked binaries will be generated inside the `dist-desktop` directory.*
-
----
-
-## 👥 Authors
-*   **Emir Tarık DEDE** - *Computer Engineering Student* - [GitHub](https://github.com/emirtdede)
-
 ---
 
 ## ⚖️ License
@@ -208,12 +202,6 @@ Velox'u tek başına çalışan bir Windows kurulum dosyasına (.exe) dönüşt�
 npm run electron:build
 ```
 *💡 Çıktı olarak üretilen `Velox Setup 1.0.0.exe` kurulum dosyası `dist-desktop` klasörü altında bulunabilir.*
-
----
-
-## 👥 Yazarlar
-*   **Emir Tarık DEDE** - *Bilgisayar Mühendisliği Öğrencisi* - [GitHub](https://github.com/emirtdede)
-
 ---
 
 ## ⚖️ Lisans
