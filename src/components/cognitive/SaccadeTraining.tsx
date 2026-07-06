@@ -53,11 +53,33 @@ export default function SaccadeTraining({
       }
     };
     window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isZenMode]);
+
+  useEffect(() => {
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
       if (saccadeTimerInterval.current) clearInterval(saccadeTimerInterval.current);
       if (saccadeCountdownInterval.current) clearInterval(saccadeCountdownInterval.current);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
     };
+  }, []);
+
+  useEffect(() => {
+    if (isZenMode) {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch((err) => {
+          console.error("Failed to enter fullscreen:", err);
+        });
+      }
+    } else {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch((err) => {
+          console.error("Failed to exit fullscreen:", err);
+        });
+      }
+    }
   }, [isZenMode]);
 
   const changeSaccadeConfig = (newSpeed: number, newType: 'horizontal' | 'vertical' | 'diagonal' | 'random') => {
@@ -87,8 +109,8 @@ export default function SaccadeTraining({
     saccadeTimerInterval.current = interval;
   };
 
-  const startSaccade = () => {
-    setIsZenMode(false);
+  const startSaccade = (startInZen = false) => {
+    setIsZenMode(startInZen);
     setSaccadeStartTime(Date.now());
     setSaccadeActiveState('playing');
     setSaccadeTimeRemaining(saccadeDuration);
@@ -141,14 +163,38 @@ export default function SaccadeTraining({
   if (isZenMode && saccadeActiveState === 'playing') {
     return (
       <div className="fixed inset-0 z-50 bg-black text-zinc-100 flex flex-col justify-center items-center overflow-hidden">
+        {/* Odak modundan çık butonu */}
         <button 
           onClick={() => setIsZenMode(false)} 
           title={lang === 'tr' ? 'Odak modundan çık (ESC)' : 'Exit focus mode (ESC)'} 
-          className="absolute top-6 right-6 z-50 p-2.5 rounded-xl border border-zinc-800 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-400 hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg"
+          className="absolute top-6 right-6 z-50 p-2.5 rounded-xl border border-zinc-800 bg-zinc-950/80 text-zinc-400 hover:text-white transition-all duration-300 opacity-20 hover:opacity-100 flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer"
         >
           <X className="w-4 h-4" />
           <span>{lang === 'tr' ? 'Odak Modundan Çık' : 'Exit Focus Mode'}</span>
         </button>
+
+        {/* Yatay, Dikey, Çapraz, Rastgele butonları */}
+        <div className="absolute top-6 left-6 z-50 flex gap-1.5 transition-all duration-300 opacity-20 hover:opacity-100">
+          {(['horizontal', 'vertical', 'diagonal', 'random'] as const).map((type) => (
+            <button
+              key={type}
+              onClick={() => {
+                setSaccadeType(type);
+                changeSaccadeConfig(saccadeSpeed, type);
+              }}
+              className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition-all capitalize cursor-pointer ${
+                saccadeType === type 
+                  ? 'bg-zinc-800 text-white border-zinc-700' 
+                  : 'bg-zinc-950/80 border-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-900'
+              }`}
+            >
+              {type === 'horizontal' ? (lang === 'tr' ? 'Yatay' : 'Horizontal') :
+               type === 'vertical' ? (lang === 'tr' ? 'Dikey' : 'Vertical') :
+               type === 'diagonal' ? (lang === 'tr' ? 'Çapraz' : 'Diagonal') :
+               (lang === 'tr' ? 'Rastgele' : 'Random')}
+            </button>
+          ))}
+        </div>
 
         <div className="w-full h-full relative bg-black">
           <div 
@@ -160,7 +206,8 @@ export default function SaccadeTraining({
             }}
           />
 
-          <div className="absolute top-6 left-6 px-3.5 py-1.5 rounded-xl bg-zinc-900/60 text-xs font-bold text-white border border-zinc-800/40 backdrop-blur">
+          {/* Kalan Süre göstergesi */}
+          <div className="absolute bottom-6 left-6 z-50 transition-all duration-300 opacity-20 hover:opacity-100 px-3.5 py-1.5 rounded-xl bg-zinc-950/80 text-xs font-bold text-zinc-400 border border-zinc-900 backdrop-blur">
             {lang === 'tr' ? 'Kalan Süre' : 'Time Left'}: {saccadeTimeRemaining}s
           </div>
         </div>
@@ -287,12 +334,21 @@ export default function SaccadeTraining({
             </div>
           </div>
 
-          <button
-            onClick={startSaccade}
-            className="h-10 w-full mt-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black"
-          >
-            {lang === 'tr' ? 'Egzersizi Başlat' : 'Start Workout'}
-          </button>
+          <div className="flex gap-3 mt-2 w-full">
+            <button
+              onClick={() => startSaccade(false)}
+              className="h-10 flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black cursor-pointer"
+            >
+              {lang === 'tr' ? 'Egzersizi Başlat' : 'Start Workout'}
+            </button>
+            <button
+              onClick={() => startSaccade(true)}
+              className="h-10 flex-1 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 text-xs font-black cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <EyeOff className="w-4 h-4" />
+              <span>{lang === 'tr' ? 'Odak Modunda Başlat' : 'Start in Focus'}</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4">
