@@ -19,13 +19,25 @@ const LEGACY_KEYS: Record<StorageKey, string> = {
   [PREFS_KEY]: 'readflow_prefs'
 };
 
+// ─── In-Memory Cache ─────────────────────────────────────────────
+// All synchronous reads hit this cache (zero JSON.parse cost after hydration).
+// Writes update cache → localStorage (best-effort) → IndexedDB (async).
+const memoryCache: Record<string, unknown> = {};
+
 function getTimestampKey(key: string) {
   return `${key}_updated_at`;
 }
 
 function saveLocalCache<T>(key: StorageKey, value: T, updatedAt = Date.now()) {
-  localStorage.setItem(key, JSON.stringify(value));
-  localStorage.setItem(getTimestampKey(key), String(updatedAt));
+  // Always keep the in-memory cache up-to-date
+  memoryCache[key] = value;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(getTimestampKey(key), String(updatedAt));
+  } catch (error) {
+    // localStorage quota exceeded – data is still safe in memoryCache + IndexedDB
+    console.error('[StorageService] LocalStorage quota exceeded or unavailable:', error);
+  }
 }
 
 function migrateLegacyCache(key: StorageKey) {
@@ -44,11 +56,23 @@ function savePersistent<T>(key: StorageKey, value: T) {
   });
 }
 
-function readJson<T>(key: StorageKey, fallback: T): T {
+function readFromCache<T>(key: StorageKey, fallback: T): T {
+  // 1. Try in-memory cache first (fastest path, no JSON.parse)
+  if (key in memoryCache) {
+    return memoryCache[key] as T;
+  }
+
+  // 2. Fallback: try localStorage (cold start before hydration completes)
   migrateLegacyCache(key);
   const data = localStorage.getItem(key);
   if (!data) return fallback;
-  return JSON.parse(data) as T;
+  try {
+    const parsed = JSON.parse(data) as T;
+    memoryCache[key] = parsed; // warm the cache
+    return parsed;
+  } catch {
+    return fallback;
+  }
 }
 
 export interface UserPreferences {
@@ -161,7 +185,7 @@ export const StorageService = {
           continue;
         }
 
-        const localValue = readJson(key, defaults[key]);
+        const localValue = readFromCache(key, defaults[key]);
         await LocalDatabase.set(key, localValue, localUpdatedAt);
       } catch (error) {
         console.warn(`[StorageService] IndexedDB hydration skipped for ${key}:`, error);
@@ -174,11 +198,11 @@ export const StorageService = {
   // Books and items persistence
   getBooks(): BookMark[] {
     try {
-      if (!localStorage.getItem(BOOKS_KEY)) {
+      const cached = readFromCache<BookMark[]>(BOOKS_KEY, SAMPLE_DOCS);
+      if (cached === SAMPLE_DOCS && !(BOOKS_KEY in memoryCache)) {
         saveLocalCache(BOOKS_KEY, SAMPLE_DOCS, 0);
-        return SAMPLE_DOCS;
       }
-      return readJson(BOOKS_KEY, SAMPLE_DOCS);
+      return cached;
     } catch (e) {
       console.error('Error reading books storage', e);
       return SAMPLE_DOCS;
@@ -301,11 +325,11 @@ export const StorageService = {
   // Stats Analytics persistence
   getStats(): UserStats {
     try {
-      if (!localStorage.getItem(STATS_KEY)) {
+      const cached = readFromCache<UserStats>(STATS_KEY, DEFAULT_STATS);
+      if (cached === DEFAULT_STATS && !(STATS_KEY in memoryCache)) {
         saveLocalCache(STATS_KEY, DEFAULT_STATS, 0);
-        return DEFAULT_STATS;
       }
-      return readJson(STATS_KEY, DEFAULT_STATS);
+      return cached;
     } catch (e) {
       return DEFAULT_STATS;
     }
@@ -444,10 +468,7 @@ export const StorageService = {
   // Preferences Storage
   getPreferences(): UserPreferences {
     try {
-      if (!localStorage.getItem(PREFS_KEY)) {
-        return DEFAULT_PREFS;
-      }
-      return { ...DEFAULT_PREFS, ...readJson(PREFS_KEY, DEFAULT_PREFS) };
+      return { ...DEFAULT_PREFS, ...readFromCache<UserPreferences>(PREFS_KEY, DEFAULT_PREFS) };
     } catch (e) {
       return DEFAULT_PREFS;
     }

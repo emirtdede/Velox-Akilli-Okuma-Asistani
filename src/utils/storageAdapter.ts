@@ -5,7 +5,7 @@
 
 import { auth, db } from '../lib/firebase';
 import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
-import { doc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, collection, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
 import { StorageService } from './storage';
 import { BookMark } from '../types';
 
@@ -129,7 +129,6 @@ export const StorageAdapter = {
       const docRef = doc(db, 'library', bookId);
       // Optional: actual delete or soft delete
       // To bypass constraints, we can call deleteDoc if the user owns it
-      const { deleteDoc } = await import('firebase/firestore');
       await deleteDoc(docRef);
     } catch (err) {
       console.warn('[StorageAdapter] Local document deleted; cloud deletion buffered.');

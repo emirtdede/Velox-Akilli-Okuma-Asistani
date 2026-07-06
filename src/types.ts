@@ -169,3 +169,10 @@ export const THEMES: Record<ThemeType, ThemeConfig> = {
     fontClass: 'font-mono'
   }
 };
+
+export type AppTab = 'home' | 'reader' | 'workspace' | 'quiz' | 'training' | 'progress' | 'guide' | 'settings' | 'about';
+export type WorkspaceTab = 'content' | 'analysis' | 'actions' | 'notes';
+export type SettingsTab = 'appearance' | 'ai' | 'data' | 'shortcuts' | 'language';
+export type BookFilter = 'all' | 'active' | 'completed';
+export type SidebarMode = 'full' | 'compact' | 'hidden';
+

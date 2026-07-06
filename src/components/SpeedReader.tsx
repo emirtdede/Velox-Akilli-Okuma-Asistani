@@ -661,7 +661,7 @@ export default function SpeedReader({
 
       {!isZenMode && (
         <footer className={`px-5 md:px-6 py-3 border-t ${currentTheme.border} ${currentTheme.cardBg} flex flex-col gap-3 shrink-0`}>
-          <div className="max-w-7xl mx-auto w-full flex flex-col gap-3">
+          <div className="w-full flex flex-col gap-3">
             <div className="flex items-center gap-4">
               <input
                 type="range"
@@ -711,78 +711,84 @@ export default function SpeedReader({
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs opacity-75 font-semibold">{lang === 'tr' ? 'Hız (WPM):' : 'Speed (WPM):'}</span>
-                  <div className="flex items-center border rounded-xl overflow-hidden bg-stone-100/30 dark:bg-zinc-950/20">
-                    <button onClick={() => setSpeedWpm(prev => Math.max(50, prev - 25))} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer">-</button>
-                    <span className="px-3 py-1 text-xs font-mono font-bold text-center w-16">{speedWpm}</span>
-                    <button onClick={() => setSpeedWpm(prev => Math.min(1500, prev + 25))} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer">+</button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs opacity-75 font-semibold">{lang === 'tr' ? 'Kelime Grubu:' : 'Word Chunk:'}</span>
-                  <div className="flex items-center border rounded-xl overflow-hidden bg-stone-100/30 dark:bg-zinc-950/20">
-                    <button onClick={decreaseGroupSize} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer" title={lang === 'tr' ? 'Kelime grubunu azalt' : 'Decrease chunk size'}>-</button>
-                    <span className="px-3 py-1 text-xs font-mono font-bold text-center w-12">{groupSize}</span>
-                    <button onClick={increaseGroupSize} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer" title={lang === 'tr' ? 'Kelime grubunu artır' : 'Increase chunk size'}>+</button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-2.5 order-first lg:order-none">
-                <button onClick={handleReset} title="Başa dön" className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}><RotateCw className="w-4 h-4" /></button>
-                <button onClick={() => handleNavigate(-10)} title="10 kelime geri" className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}><ChevronLeft className="w-4 h-4" /></button>
-                <button onClick={() => setIsPlaying(prev => !prev)} className="p-3.5 rounded-full bg-[#3355FF] hover:bg-[#4D66FF] text-white hover:scale-105 transition-all shadow-md cursor-pointer flex items-center justify-center">
-                  {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
-                </button>
-                <button onClick={() => handleNavigate(10)} title="10 kelime ileri" className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg} rotate-180`}><ChevronLeft className="w-4 h-4" /></button>
-              </div>
-
-              <div className="flex items-center justify-start lg:justify-end gap-2 min-w-0 overflow-x-auto">
-                <span className="text-xs opacity-75 font-semibold whitespace-nowrap">{lang === 'tr' ? 'Odak Modu:' : 'Focus Mode:'}</span>
-                <select
-                  value={readingMode}
-                  onChange={(event) => setReadingMode(event.target.value as ReadingMode)}
-                  className={`text-xs h-8 px-3 rounded-xl border ${currentTheme.border} bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 outline-none cursor-pointer max-w-[210px]`}
-                  style={{
-                    backgroundColor: themeType === 'dark' || themeType === 'amoled' ? '#09090b' : '#ffffff',
-                    color: themeType === 'dark' || themeType === 'amoled' ? '#f4f4f5' : '#111827'
-                  }}
-                >
-                  {Object.entries(modeLabels).map(([value, label]) => (
-                    <option
-                      key={value}
-                      value={value}
-                      className="bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100"
+            <div className="flex flex-wrap lg:grid lg:grid-cols-[1fr_auto_1fr] items-center justify-between w-full gap-3">
+              <div className="flex flex-wrap items-end justify-start gap-1 lg:gap-2 min-w-0">
+                <div className="flex items-end gap-1.5 lg:gap-2">
+                  <div className="flex flex-col gap-1 items-center min-w-0">
+                    <span className="text-[10px] opacity-75 font-extrabold uppercase tracking-wider text-center w-full">{lang === 'tr' ? 'Odak Modu' : 'Focus Mode'}</span>
+                    <select
+                      value={readingMode}
+                      onChange={(event) => setReadingMode(event.target.value as ReadingMode)}
+                      className={`text-xs h-7.5 lg:h-8 px-2 lg:px-3 rounded-lg lg:rounded-xl border ${currentTheme.border} bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 outline-none cursor-pointer max-w-[210px]`}
                       style={{
                         backgroundColor: themeType === 'dark' || themeType === 'amoled' ? '#09090b' : '#ffffff',
                         color: themeType === 'dark' || themeType === 'amoled' ? '#f4f4f5' : '#111827'
                       }}
                     >
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                {readingMode === 'center' && groupSize === 1 && <button onClick={() => setIsOrp(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${isOrp ? 'bg-amber-500/10 border-amber-500/40 text-amber-400' : 'opacity-50'}`} title={lang === 'tr' ? 'Optimal Tanıma Noktası: kelimenin gözün en hızlı yakaladığı harfini vurgular' : 'Optimal Recognition Point: highlights the easiest letter to recognize'}>ORP</button>}
-                {readingMode === 'center' && groupSize === 1 && <button onClick={() => setShowFocusGuides(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${showFocusGuides ? 'bg-[#4A6CFF]/10 border-[#4A6CFF]/35 text-[#4A6CFF]' : 'opacity-50'}`} title={lang === 'tr' ? 'Kelimenin merkezindeki odak çizgilerini göster veya gizle' : 'Show or hide center focus guides'} aria-pressed={showFocusGuides}>{lang === 'tr' ? 'Odak Çizgisi' : 'Focus Guide'}</button>}
-                <button onClick={() => setSmartPauses(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${smartPauses ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'opacity-50'}`} title={lang === 'tr' ? 'Nokta, virgül ve uzun kelimelerde kısa doğal duraklamalar ekler' : 'Adds natural pauses at punctuation or long words'}>{lang === 'tr' ? 'Akıllı Es' : 'Smart Pause'}</button>
-                <button
-                  onClick={() => setIsFocusLineEnabled(prev => !prev)}
-                  className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${isFocusLineEnabled ? 'bg-indigo-550/15 border-indigo-500/45 text-indigo-400 font-extrabold' : 'opacity-50'}`}
-                  title={lang === 'tr' ? 'Satır Takip Vurgusunu açar/kapatır' : 'Toggles active reading line focus highlight'}
-                >
-                  {lang === 'tr' ? 'Satır Vurgusu' : 'Line Focus'}
+                      {Object.entries(modeLabels).map(([value, label]) => (
+                        <option
+                          key={value}
+                          value={value}
+                          className="bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100"
+                          style={{
+                            backgroundColor: themeType === 'dark' || themeType === 'amoled' ? '#09090b' : '#ffffff',
+                            color: themeType === 'dark' || themeType === 'amoled' ? '#f4f4f5' : '#111827'
+                          }}
+                        >
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {readingMode === 'center' && groupSize === 1 && <button onClick={() => setIsOrp(prev => !prev)} className={`h-7.5 lg:h-8 px-2 lg:px-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-bold border whitespace-nowrap ${isOrp ? 'bg-amber-500/10 border-amber-500/40 text-amber-400' : 'opacity-50'}`} title={lang === 'tr' ? 'Optimal Tanıma Noktası: kelimenin gözün en hızlı yakaladığı harfini vurgular' : 'Optimal Recognition Point: highlights the easiest letter to recognize'}>ORP</button>}
+                  {readingMode === 'center' && groupSize === 1 && <button onClick={() => setShowFocusGuides(prev => !prev)} className={`h-7.5 lg:h-8 px-2 lg:px-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-bold border whitespace-nowrap ${showFocusGuides ? 'bg-[#4A6CFF]/10 border-[#4A6CFF]/35 text-[#4A6CFF]' : 'opacity-50'}`} title={lang === 'tr' ? 'Kelimenin merkezindeki odak çizgilerini göster veya gizle' : 'Show or hide center focus guides'} aria-pressed={showFocusGuides}>{lang === 'tr' ? 'Odak Çizgisi' : 'Focus Guide'}</button>}
+                </div>
+                <div className="flex items-end gap-1.5 lg:gap-2">
+                  <button onClick={() => setSmartPauses(prev => !prev)} className={`h-7.5 lg:h-8 px-2 lg:px-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-bold border whitespace-nowrap ${smartPauses ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'opacity-50'}`} title={lang === 'tr' ? 'Nokta, virgül ve uzun kelimelerde kısa doğal duraklamalar ekler' : 'Adds natural pauses at punctuation or long words'}>{lang === 'tr' ? 'Akıllı Es' : 'Smart Pause'}</button>
+                  <button
+                    onClick={() => setIsFocusLineEnabled(prev => !prev)}
+                    className={`h-7.5 lg:h-8 px-2 lg:px-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-bold border whitespace-nowrap ${isFocusLineEnabled ? 'bg-indigo-550/15 border-indigo-500/45 text-indigo-400 font-extrabold' : 'opacity-50'}`}
+                    title={lang === 'tr' ? 'Satır Takip Vurgusunu açar/kapatır' : 'Toggles active reading line focus highlight'}
+                  >
+                    {lang === 'tr' ? 'Satır Vurgusu' : 'Line Focus'}
+                  </button>
+                  <button
+                    onClick={() => setIsAntiRegressionEnabled(prev => !prev)}
+                    className={`h-7.5 lg:h-8 px-2 lg:px-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-bold border whitespace-nowrap ${isAntiRegressionEnabled ? 'bg-rose-500/15 border-rose-500/40 text-rose-450 font-extrabold' : 'opacity-50'}`}
+                    title={lang === 'tr' ? 'Geri dönerek okumayı zorlaştırmak için eski kelimeleri soluklaştırır' : 'Fades out past words to discourage regression'}
+                  >
+                    {lang === 'tr' ? 'Anti-Regression' : 'Anti-Regression'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-1.5 lg:gap-2.5">
+                <button onClick={handleReset} title="Başa dön" className={`p-1.5 lg:p-2.5 rounded-lg lg:rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}><RotateCw className="w-3.5 h-3.5 lg:w-4 lg:h-4" /></button>
+                <button onClick={() => handleNavigate(-10)} title="10 kelime geri" className={`p-1.5 lg:p-2.5 rounded-lg lg:rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}><ChevronLeft className="w-3.5 h-3.5 lg:w-4 lg:h-4" /></button>
+                <button onClick={() => setIsPlaying(prev => !prev)} className="p-2 lg:p-3.5 rounded-full bg-[#3355FF] hover:bg-[#4D66FF] text-white hover:scale-105 transition-all shadow-md cursor-pointer flex items-center justify-center">
+                  {isPlaying ? <Pause className="w-4 h-4 lg:w-5 lg:h-5 fill-white" /> : <Play className="w-4 h-4 lg:w-5 lg:h-5 fill-white ml-0.5" />}
                 </button>
-                <button
-                  onClick={() => setIsAntiRegressionEnabled(prev => !prev)}
-                  className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${isAntiRegressionEnabled ? 'bg-rose-500/15 border-rose-500/40 text-rose-450 font-extrabold' : 'opacity-50'}`}
-                  title={lang === 'tr' ? 'Geri dönerek okumayı zorlaştırmak için eski kelimeleri soluklaştırır' : 'Fades out past words to discourage regression'}
-                >
-                  {lang === 'tr' ? 'Anti-Regression' : 'Anti-Regression'}
-                </button>
+                <button onClick={() => handleNavigate(10)} title="10 kelime ileri" className={`p-1.5 lg:p-2.5 rounded-lg lg:rounded-xl border ${currentTheme.border} ${currentTheme.cardBg} rotate-180`}><ChevronLeft className="w-3.5 h-3.5 lg:w-4 lg:h-4" /></button>
+              </div>
+
+              <div className="flex flex-wrap items-center lg:justify-end gap-2 lg:gap-4 shrink-0">
+                <div className="flex flex-col gap-1 items-center">
+                  <span className="text-[10px] opacity-75 font-extrabold uppercase tracking-wider text-center w-full">{lang === 'tr' ? 'Hız (WPM)' : 'Speed (WPM)'}</span>
+                  <div className="flex items-center border rounded-xl overflow-hidden bg-stone-100/30 dark:bg-zinc-950/20">
+                    <button onClick={() => setSpeedWpm(prev => Math.max(50, prev - 25))} className="px-2 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer">-</button>
+                    <span className="px-2.5 py-1 text-xs font-mono font-bold text-center w-12 lg:w-16">{speedWpm}</span>
+                    <button onClick={() => setSpeedWpm(prev => Math.min(1500, prev + 25))} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer">+</button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1 items-center">
+                  <span className="text-[10px] opacity-75 font-extrabold uppercase tracking-wider text-center w-full">{lang === 'tr' ? 'Kelime Grubu' : 'Word Chunk'}</span>
+                  <div className="flex items-center border rounded-xl overflow-hidden bg-stone-100/30 dark:bg-zinc-950/20">
+                    <button onClick={decreaseGroupSize} className="px-2 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer" title={lang === 'tr' ? 'Kelime grubunu azalt' : 'Decrease chunk size'}>-</button>
+                    <span className="px-2.5 py-1 text-xs font-mono font-bold text-center w-8 lg:w-12">{groupSize}</span>
+                    <button onClick={increaseGroupSize} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer" title={lang === 'tr' ? 'Kelime grubunu artır' : 'Increase chunk size'}>+</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
