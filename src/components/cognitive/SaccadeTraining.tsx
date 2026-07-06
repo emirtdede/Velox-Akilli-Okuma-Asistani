@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, X } from 'lucide-react';
+import { ChevronLeft, X, EyeOff } from 'lucide-react';
 
 interface SaccadeTrainingProps {
   activeModule: string | null;
@@ -31,6 +31,7 @@ export default function SaccadeTraining({
   const [saccadeActiveState, setSaccadeActiveState] = useState<'idle' | 'playing'>('idle');
   const [saccadeDotPos, setSaccadeDotPos] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [saccadeStartTime, setSaccadeStartTime] = useState<number | null>(null);
+  const [isZenMode, setIsZenMode] = useState<boolean>(false);
   
   const saccadeTimerInterval = useRef<any>(null);
   const saccadeCountdownInterval = useRef<any>(null);
@@ -46,11 +47,18 @@ export default function SaccadeTraining({
   }, [saccadeSpeed]);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isZenMode) {
+        setIsZenMode(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
       if (saccadeTimerInterval.current) clearInterval(saccadeTimerInterval.current);
       if (saccadeCountdownInterval.current) clearInterval(saccadeCountdownInterval.current);
     };
-  }, []);
+  }, [isZenMode]);
 
   const changeSaccadeConfig = (newSpeed: number, newType: 'horizontal' | 'vertical' | 'diagonal' | 'random') => {
     if (saccadeTimerInterval.current) {
@@ -80,6 +88,7 @@ export default function SaccadeTraining({
   };
 
   const startSaccade = () => {
+    setIsZenMode(false);
     setSaccadeStartTime(Date.now());
     setSaccadeActiveState('playing');
     setSaccadeTimeRemaining(saccadeDuration);
@@ -101,12 +110,14 @@ export default function SaccadeTraining({
         onSaveSession({ type: 'Saccade Workout', duration: saccadeDuration, score: Math.min(100, saccadeDuration * 2), accuracy: 100 });
         setSaccadeStartTime(null);
         setSaccadeActiveState('idle');
+        setIsZenMode(false);
       }
     }, 1000);
     saccadeCountdownInterval.current = countInterval;
   };
 
   const stopSaccade = () => {
+    setIsZenMode(false);
     if (saccadeTimerInterval.current) {
       clearInterval(saccadeTimerInterval.current);
       saccadeTimerInterval.current = null;
@@ -126,6 +137,36 @@ export default function SaccadeTraining({
   };
 
   if (activeModule !== 'saccade') return null;
+
+  if (isZenMode && saccadeActiveState === 'playing') {
+    return (
+      <div className="fixed inset-0 z-50 bg-black text-zinc-100 flex flex-col justify-center items-center overflow-hidden">
+        <button 
+          onClick={() => setIsZenMode(false)} 
+          title={lang === 'tr' ? 'Odak modundan çık (ESC)' : 'Exit focus mode (ESC)'} 
+          className="absolute top-6 right-6 z-50 p-2.5 rounded-xl border border-zinc-800 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-400 hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg"
+        >
+          <X className="w-4 h-4" />
+          <span>{lang === 'tr' ? 'Odak Modundan Çık' : 'Exit Focus Mode'}</span>
+        </button>
+
+        <div className="w-full h-full relative bg-black">
+          <div 
+            className="w-5 h-5 rounded-full bg-indigo-500 absolute transition-all duration-100 shadow-lg shadow-indigo-500/50"
+            style={{
+              left: `${saccadeDotPos.x}%`,
+              top: `${saccadeDotPos.y}%`,
+              transform: 'translate(-50%, -50%)'
+            }}
+          />
+
+          <div className="absolute top-6 left-6 px-3.5 py-1.5 rounded-xl bg-zinc-900/60 text-xs font-bold text-white border border-zinc-800/40 backdrop-blur">
+            {lang === 'tr' ? 'Kalan Süre' : 'Time Left'}: {saccadeTimeRemaining}s
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-5`}>
@@ -167,6 +208,7 @@ export default function SaccadeTraining({
                 saccadeCountdownInterval.current = null;
                 setSaccadeStartTime(null);
                 setSaccadeActiveState('idle');
+                setIsZenMode(false);
               }}
               title={lang === 'tr' ? 'Egzersizi İptal Et' : 'Cancel Exercise'}
               className="h-8 w-8 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-450 hover:bg-rose-500/20 cursor-pointer flex items-center justify-center shrink-0"
@@ -307,23 +349,34 @@ export default function SaccadeTraining({
             {t('tr_lab_saccade_safety_alert')}
           </p>
 
-          <button
-            onClick={() => {
-                setSaccadeActiveState('idle');
-                if (saccadeTimerInterval.current) clearInterval(saccadeTimerInterval.current);
-                if (saccadeCountdownInterval.current) clearInterval(saccadeCountdownInterval.current);
-                saccadeTimerInterval.current = null;
-                saccadeCountdownInterval.current = null;
-                if (saccadeStartTime) {
-                  const dur = Math.floor((Date.now() - saccadeStartTime) / 1000);
-                  onSaveSession({ type: 'Saccade Workout', duration: dur, score: Math.min(100, dur * 2), accuracy: 100 });
-                }
-                setSaccadeStartTime(null);
-            }}
-            className="h-10 px-6 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold animate-pulse"
-          >
-            {lang === 'tr' ? 'Durdur ve Tamamla' : 'Stop and Finish'}
-          </button>
+          <div className="flex items-center gap-3 mt-1">
+            <button
+              onClick={() => setIsZenMode(true)}
+              className="h-10 px-6 rounded-xl border border-stone-200 dark:border-zinc-800 hover:bg-stone-50 dark:hover:bg-zinc-900 text-xs font-bold flex items-center gap-1.5 cursor-pointer text-stone-700 dark:text-zinc-300"
+            >
+              <EyeOff className="w-4 h-4" />
+              <span>{lang === 'tr' ? 'Odak Modu' : 'Focus Mode'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                  setSaccadeActiveState('idle');
+                  if (saccadeTimerInterval.current) clearInterval(saccadeTimerInterval.current);
+                  if (saccadeCountdownInterval.current) clearInterval(saccadeCountdownInterval.current);
+                  saccadeTimerInterval.current = null;
+                  saccadeCountdownInterval.current = null;
+                  if (saccadeStartTime) {
+                    const dur = Math.floor((Date.now() - saccadeStartTime) / 1000);
+                    onSaveSession({ type: 'Saccade Workout', duration: dur, score: Math.min(100, dur * 2), accuracy: 100 });
+                  }
+                  setSaccadeStartTime(null);
+                  setIsZenMode(false);
+              }}
+              className="h-10 px-6 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold animate-pulse cursor-pointer"
+            >
+              {lang === 'tr' ? 'Durdur ve Tamamla' : 'Stop and Finish'}
+            </button>
+          </div>
         </div>
       )}
     </div>
