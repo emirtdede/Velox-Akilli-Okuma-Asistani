@@ -452,18 +452,18 @@ export default function SpeedReader({
       {isZenMode && (
         <button 
           onClick={() => setIsZenMode(false)} 
-          title="Odak modundan çık (ESC)" 
+          title={lang === 'tr' ? 'Odak modundan çık (ESC)' : 'Exit focus mode (ESC)'} 
           className="absolute top-4 right-4 z-50 p-2.5 rounded-xl border border-zinc-800 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-400 hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg"
         >
           <Eye className="w-4 h-4" />
-          <span>Odak Modundan Çık</span>
+          <span>{lang === 'tr' ? 'Odak Modundan Çık' : 'Exit Focus Mode'}</span>
         </button>
       )}
 
       {!isZenMode && (
         <header className={`flex items-center justify-between px-5 md:px-6 py-3 border-b ${currentTheme.border} shrink-0`}>
           <div className="flex items-center gap-3 min-w-0">
-            <button onClick={onClose} className={`p-2 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg} hover:opacity-80 transition-all cursor-pointer`} title="Okuyucudan çık">
+            <button onClick={onClose} className={`p-2 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg} hover:opacity-80 transition-all cursor-pointer`} title={lang === 'tr' ? 'Okuyucudan çık' : 'Exit reader'}>
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="relative min-w-0" ref={bookSelectorRef}>
@@ -473,7 +473,7 @@ export default function SpeedReader({
                   setBookSearchQuery('');
                 }}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl hover:bg-stone-100 dark:hover:bg-zinc-900 transition-all text-left min-w-0 cursor-pointer"
-                title="Metin değiştir"
+                title={lang === 'tr' ? 'Metin değiştir' : 'Change document'}
               >
                 <span className="font-bold text-sm tracking-tight truncate max-w-xs md:max-w-md">{book.title}</span>
                 <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
@@ -486,17 +486,17 @@ export default function SpeedReader({
                       type="text"
                       value={bookSearchQuery}
                       onChange={(e) => setBookSearchQuery(e.target.value)}
-                      placeholder="Belge ara..."
+                      placeholder={lang === 'tr' ? 'Belge ara...' : 'Search document...'}
                       className="w-full text-xs outline-none bg-transparent text-stone-900 dark:text-zinc-100 placeholder-stone-400"
                       autoFocus
                     />
                   </div>
                   <div className="px-3 py-1 text-[9px] font-black uppercase text-stone-400 dark:text-zinc-500 border-b border-stone-100 dark:border-zinc-900 mb-1.5">
-                    {bookSearchQuery.trim() ? 'Arama Sonuçları' : 'Son Okunanlar (Maks 10)'}
+                    {bookSearchQuery.trim() ? (lang === 'tr' ? 'Arama Sonuçları' : 'Search Results') : (lang === 'tr' ? 'Son Okunanlar (Maks 10)' : 'Recently Read (Max 10)')}
                   </div>
                   {displayedBooks.length === 0 ? (
                     <div className="px-3 py-4 text-xs text-center text-stone-400 dark:text-zinc-500 font-bold">
-                      Metin bulunamadı.
+                      {lang === 'tr' ? 'Metin bulunamadı.' : 'No documents found.'}
                     </div>
                   ) : (
                     displayedBooks.map(b => (
@@ -519,25 +519,25 @@ export default function SpeedReader({
                 </div>
               )}
               <div className="pl-2.5">
-                <span className="text-[10px] font-mono opacity-75">İlerleme: %{progressPercent} ({currentIndex}/{totalWords} kelime)</span>
+                <span className="text-[10px] font-mono opacity-75">{lang === 'tr' ? 'İlerleme' : 'Progress'}: %{progressPercent} ({currentIndex}/{totalWords} {lang === 'tr' ? 'kelime' : 'words'})</span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={() => setSoundEnabled(prev => !prev)} title={soundEnabled ? 'Metronom sesini kapat' : 'Metronom sesini aç'} className={`p-2.5 rounded-xl border ${currentTheme.border} ${soundEnabled ? 'bg-[#3355FF] border-[#3355FF] text-white' : currentTheme.cardBg}`}>
+            <button onClick={() => setSoundEnabled(prev => !prev)} title={soundEnabled ? (lang === 'tr' ? 'Metronom sesini kapat' : 'Mute metronome') : (lang === 'tr' ? 'Metronom sesini aç' : 'Unmute metronome')} className={`p-2.5 rounded-xl border ${currentTheme.border} ${soundEnabled ? 'bg-[#3355FF] border-[#3355FF] text-white' : currentTheme.cardBg}`}>
               <Volume2 className="w-4.5 h-4.5" />
             </button>
-            <button onClick={() => setShowShortcuts(prev => !prev)} title="Klavye kısayolları" className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}>
+            <button onClick={() => setShowShortcuts(prev => !prev)} title={lang === 'tr' ? 'Klavye kısayolları' : 'Keyboard shortcuts'} className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}>
               <Keyboard className="w-4.5 h-4.5" />
             </button>
-            <button onClick={toggleFullscreen} title={isFullscreen ? 'Tam ekrandan çık' : 'Tam ekran yap'} className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}>
+            <button onClick={toggleFullscreen} title={isFullscreen ? (lang === 'tr' ? 'Tam ekrandan çık' : 'Exit fullscreen') : (lang === 'tr' ? 'Tam ekran yap' : 'Enter fullscreen')} className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}>
               {isFullscreen ? <Minimize className="w-4.5 h-4.5" /> : <Maximize className="w-4.5 h-4.5" />}
             </button>
-            <button onClick={() => setIsZenMode(true)} title="Odak modu (Zen)" className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}>
+            <button onClick={() => setIsZenMode(true)} title={lang === 'tr' ? 'Odak modu (Zen)' : 'Zen focus mode'} className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.cardBg}`}>
               <EyeOff className="w-4.5 h-4.5" />
             </button>
-            <button onClick={() => setShowTools(prev => !prev)} title="Bilgi Paneli" className={`p-2.5 rounded-xl border ${currentTheme.border} ${showTools ? 'bg-[#3355FF] border-[#3355FF] text-white' : currentTheme.cardBg}`}>
+            <button onClick={() => setShowTools(prev => !prev)} title={lang === 'tr' ? 'Bilgi Paneli' : 'Info Panel'} className={`p-2.5 rounded-xl border ${currentTheme.border} ${showTools ? 'bg-[#3355FF] border-[#3355FF] text-white' : currentTheme.cardBg}`}>
               <Info className="w-4.5 h-4.5" />
             </button>
           </div>
@@ -566,33 +566,49 @@ export default function SpeedReader({
                 className="flex-1 h-1.5 bg-stone-200/60 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#4A6CFF] outline-none"
               />
               <span className="text-[10px] font-mono opacity-80 whitespace-nowrap bg-stone-100 dark:bg-zinc-900 border border-stone-200 dark:border-zinc-800 px-2 py-1 rounded-lg shrink-0">
-                İlerleme: %{progressPercent} ({currentIndex}/{totalWords} kelime)
+                {lang === 'tr' ? 'İlerleme' : 'Progress'}: %{progressPercent} ({currentIndex}/{totalWords} {lang === 'tr' ? 'kelime' : 'words'})
               </span>
             </div>
 
             {showTools && (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-[11px] border-b border-zinc-850/60 pb-3">
-                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30"><strong>Akıllı Es:</strong> Noktalama ve uzun kelimelerde doğal duraklama ekler.</div>
-                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30"><strong>ORP:</strong> Tek kelimede hızlı tanıma harfini vurgular.</div>
-                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30"><strong>Odak Çizgisi:</strong> Kelimenin merkezini sabitleyen üst-alt rehber çizgilerini açıp kapatır.</div>
-                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30"><strong>Kelime Grubu:</strong> Aynı anda gösterilen kelime sayısıdır; üst sınır yoktur.</div>
-                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30"><strong>Odak Modu:</strong> Merkez RSVP, satır, teleprompter, bionic ve paragraf vurgusu arasında geçiş yapar.</div>
-                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30"><strong>Hız Kontrolü:</strong> WPM değerini 50-1500 aralığında artırıp azaltır.</div>
-                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30"><strong>Zaman Çizgisi:</strong> Okuma konumunu hızlıca ileri veya geri taşır.</div>
-                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30"><strong>Metronom:</strong> İsteğe bağlı sesli ritim geri bildirimi verir.</div>
+                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30">
+                  <strong>{lang === 'tr' ? 'Akıllı Es' : 'Smart Pause'}:</strong> {lang === 'tr' ? 'Noktalama ve uzun kelimelerde doğal duraklama ekler.' : 'Adds natural pauses at punctuation and long words.'}
+                </div>
+                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30">
+                  <strong>ORP:</strong> {lang === 'tr' ? 'Tek kelimede hızlı tanıma harfini vurgular.' : 'Highlights the optimal recognition point letter in a word.'}
+                </div>
+                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30">
+                  <strong>{lang === 'tr' ? 'Odak Çizgisi' : 'Focus Line'}:</strong> {lang === 'tr' ? 'Kelimenin merkezini sabitleyen üst-alt rehber çizgilerini açıp kapatır.' : 'Toggles top-bottom guides that anchor the center of the word.'}
+                </div>
+                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30">
+                  <strong>{lang === 'tr' ? 'Kelime Grubu' : 'Word Chunking'}:</strong> {lang === 'tr' ? 'Aynı anda gösterilen kelime sayısıdır; üst sınır yoktur.' : 'The number of words shown simultaneously; no upper limit.'}
+                </div>
+                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30">
+                  <strong>{lang === 'tr' ? 'Odak Modu' : 'Focus Mode'}:</strong> {lang === 'tr' ? 'Merkez RSVP, satır, teleprompter, bionic ve paragraf vurgusu arasında geçiş yapar.' : 'Switches between center RSVP, single-line, teleprompter, bionic, and paragraph highlight.'}
+                </div>
+                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30">
+                  <strong>{lang === 'tr' ? 'Hız Kontrolü' : 'Speed Control'}:</strong> {lang === 'tr' ? 'WPM değerini 50-1500 aralığında artırıp azaltır.' : 'Increases or decreases WPM speed within a range of 50-1500.'}
+                </div>
+                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30">
+                  <strong>{lang === 'tr' ? 'Zaman Çizgisi' : 'Timeline'}:</strong> {lang === 'tr' ? 'Okuma konumunu hızlıca ileri veya geri taşır.' : 'Quickly moves the reading position forward or backward.'}
+                </div>
+                <div className="rounded-xl border border-zinc-850 p-3 bg-zinc-950/30">
+                  <strong>{lang === 'tr' ? 'Metronom' : 'Metronome'}:</strong> {lang === 'tr' ? 'İsteğe bağlı sesli ritim geri bildirimi verir.' : 'Provides optional auditory metronome beats.'}
+                </div>
               </div>
             )}
 
             {showShortcuts && (
               <div className="text-[11px] opacity-75 border-b border-zinc-850/60 pb-3 flex flex-wrap gap-3">
-                <span>Space: Oynat/Duraklat</span><span>←/→: 10 kelime gezin</span><span>↑/↓: Hız değiştir</span><span>Esc: Çıkış</span>
+                <span>Space: {lang === 'tr' ? 'Oynat/Duraklat' : 'Play/Pause'}</span><span>←/→: {lang === 'tr' ? '10 kelime gezin' : 'Navigate 10 words'}</span><span>↑/↓: {lang === 'tr' ? 'Hız değiştir' : 'Change speed'}</span><span>Esc: {lang === 'tr' ? 'Çıkış' : 'Exit'}</span>
               </div>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] items-center gap-3">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs opacity-75 font-semibold">Hız (WPM):</span>
+                  <span className="text-xs opacity-75 font-semibold">{lang === 'tr' ? 'Hız (WPM):' : 'Speed (WPM):'}</span>
                   <div className="flex items-center border rounded-xl overflow-hidden bg-stone-100/30 dark:bg-zinc-950/20">
                     <button onClick={() => setSpeedWpm(prev => Math.max(50, prev - 25))} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer">-</button>
                     <span className="px-3 py-1 text-xs font-mono font-bold text-center w-16">{speedWpm}</span>
@@ -601,11 +617,11 @@ export default function SpeedReader({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs opacity-75 font-semibold">Kelime Grubu:</span>
+                  <span className="text-xs opacity-75 font-semibold">{lang === 'tr' ? 'Kelime Grubu:' : 'Word Chunk:'}</span>
                   <div className="flex items-center border rounded-xl overflow-hidden bg-stone-100/30 dark:bg-zinc-950/20">
-                    <button onClick={decreaseGroupSize} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer" title="Kelime grubunu azalt">-</button>
+                    <button onClick={decreaseGroupSize} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer" title={lang === 'tr' ? 'Kelime grubunu azalt' : 'Decrease chunk size'}>-</button>
                     <span className="px-3 py-1 text-xs font-mono font-bold text-center w-12">{groupSize}</span>
-                    <button onClick={increaseGroupSize} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer" title="Kelime grubunu artır">+</button>
+                    <button onClick={increaseGroupSize} className="px-2.5 py-1 text-xs hover:bg-zinc-800 font-bold cursor-pointer" title={lang === 'tr' ? 'Kelime grubunu artır' : 'Increase chunk size'}>+</button>
                   </div>
                 </div>
               </div>

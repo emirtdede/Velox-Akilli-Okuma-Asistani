@@ -50,6 +50,8 @@ export interface BookMark {
     keyPoints: string[];
     summary: string;
   } | null;
+  comprehensionQuestions?: any;
+  insightsResult?: any;
 }
 
 export interface ThemeConfig {

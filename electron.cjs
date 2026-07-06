@@ -77,14 +77,39 @@ function createWindow() {
       : path.join(__dirname, 'public/transparent.png')
   });
 
-  mainWindow.loadURL('data:text/html,<html><body style="background:#1e1e2e;color:#cdd6f4;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;"><div><h2>Velox Yükleniyor...</h2></div></body></html>');
+  mainWindow.loadURL('data:text/html,<html><body style="background:#0c0a09;color:#f5f5f4;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;"><div><h2>Velox Yükleniyor...</h2></div></body></html>');
 
   startServer();
 
-  // DevTools disabled as requested
-  // if (!app.isPackaged) {
-  //   mainWindow.webContents.openDevTools();
-  // }
+  // Load fail handler to prevent white screens
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    // Ignore small aborted requests or redirects
+    if (errorCode === -3) return; 
+    console.error(`Page failed to load: ${errorDescription} (${errorCode})`);
+    mainWindow.loadURL(`data:text/html,<html><body style="background:#0c0a09;color:#f5f5f4;font-family:sans-serif;display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;margin:0;padding:20px;text-align:center;">
+      <div style="max-width: 500px; padding: 30px; border-radius: 20px; background: #1c1917; border: 1px solid #2e2a24; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+        <h2 style="color:#ef4444;margin-top:0;font-weight:900;">Velox - Başlatma Hatası</h2>
+        <p style="font-size:14px;opacity:0.8;line-height:1.6;margin-bottom:20px;">Sunucu bağlantısı kurulamadı veya uygulama yüklenirken bir hata oluştu.</p>
+        <div style="background:#0c0a09;padding:15px;border-radius:12px;font-family:monospace;font-size:11px;color:#a8a29e;text-align:left;line-height:1.5;word-break:break-all;margin-bottom:20px;border:1px solid #292524;">
+          <strong>Hedef:</strong> ${validatedURL}<br>
+          <strong>Hata:</strong> ${errorDescription} (${errorCode})
+        </div>
+        <button onclick="window.location.reload()" style="background:#4f46e5;color:white;border:none;padding:12px 24px;border-radius:12px;font-weight:bold;cursor:pointer;font-size:13px;transition:all 0.2s;box-shadow:0 4px 12px rgba(79,70,229,0.3);" onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">Yeniden Dene</button>
+      </div>
+    </body></html>`);
+  });
+
+  // Safe developer shortcuts in development mode
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+      mainWindow.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+    if (input.key === 'F5' || (input.control && input.key.toLowerCase() === 'r')) {
+      mainWindow.webContents.reloadIgnoringCache();
+      event.preventDefault();
+    }
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;

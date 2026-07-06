@@ -1,11 +1,7 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useRef } from 'react';
 import { extractTextFromPdf, extractTextFromDocx, extractTextFromEpub } from '../utils/parsers';
 import { FileText, FileDown, UploadCloud, Globe, RefreshCw, X, AlertTriangle } from 'lucide-react';
+import { useTranslation } from '../utils/i18n';
 
 interface AddDocumentModalProps {
   onClose: () => void;
@@ -13,6 +9,7 @@ interface AddDocumentModalProps {
 }
 
 export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'upload' | 'paste' | 'url'>('upload');
   
   // Paste states
@@ -37,16 +34,16 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
       setLoadingPercent(80);
       const text = e.target?.result as string;
       if (text.trim().length === 0) {
-        setUploadError('Yüklediğiniz dosya boş çıktı.');
+        setUploadError(t('add_doc_empty_file' as any));
         setLoadingPercent(null);
         return;
       }
-      onAdd(file.name.replace(/\.[^/.]+$/, ""), text, [file.name.split('.').pop()?.toUpperCase() || 'Dosya']);
+      onAdd(file.name.replace(/\.[^/.]+$/, ""), text, [file.name.split('.').pop()?.toUpperCase() || t('add_doc_file_label' as any)]);
       setLoadingPercent(null);
       onClose();
     };
     reader.onerror = () => {
-      setUploadError('Dosya okuma sırasında hata oluştu.');
+      setUploadError(t('add_doc_read_err' as any));
       setLoadingPercent(null);
     };
     reader.readAsText(file);
@@ -65,20 +62,20 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
           });
           
           if (!text || text.trim().length < 10) {
-            throw new Error('PDF dosyasından okunabilir düzenli bir metin çıkarılamadı.');
+            throw new Error(t('add_doc_pdf_err' as any));
           }
 
           onAdd(file.name.replace(/\.[^/.]+$/, ""), text, ['PDF']);
           setLoadingPercent(null);
           onClose();
         } catch (err: any) {
-          setUploadError(err.message || 'PDF ayrıştırılırken bilinmeyen bir hata meydana geldi.');
+          setUploadError(err.message || t('add_doc_pdf_parse_err' as any));
           setLoadingPercent(null);
         }
       };
       reader.readAsArrayBuffer(file);
     } catch (err: any) {
-      setUploadError('Dosya okunurken hata oluştu.');
+      setUploadError(t('add_doc_read_err' as any));
       setLoadingPercent(null);
     }
   };
@@ -95,7 +92,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
           const text = await extractTextFromDocx(buffer);
           
           if (!text || text.trim().length === 0) {
-            throw new Error('Word dosyasının içi boş görünüyor.');
+            throw new Error(t('add_doc_word_empty' as any));
           }
           
           setLoadingPercent(90);
@@ -103,13 +100,13 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
           setLoadingPercent(null);
           onClose();
         } catch (err: any) {
-          setUploadError(err.message || 'Word dosyası okunamadı.');
+          setUploadError(err.message || t('add_doc_word_read_err' as any));
           setLoadingPercent(null);
         }
       };
       reader.readAsArrayBuffer(file);
     } catch (err: any) {
-      setUploadError('Dosya okunurken hata oluştu.');
+      setUploadError(t('add_doc_read_err' as any));
       setLoadingPercent(null);
     }
   };
@@ -127,20 +124,20 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
           });
           
           if (!text || text.trim().length === 0) {
-            throw new Error('EPUB kitabından okunabilir bir metin çıkarılamadı.');
+            throw new Error(t('add_doc_epub_err' as any));
           }
           
-          onAdd(file.name.replace(/\.[^/.]+$/, ""), text, ['EPUB', 'Kitap']);
+          onAdd(file.name.replace(/\.[^/.]+$/, ""), text, ['EPUB', t('add_doc_file_label' as any)]);
           setLoadingPercent(null);
           onClose();
         } catch (err: any) {
-          setUploadError(err.message || 'EPUB dosyası ayrıştırılamadı.');
+          setUploadError(err.message || t('add_doc_epub_parse_err' as any));
           setLoadingPercent(null);
         }
       };
       reader.readAsArrayBuffer(file);
     } catch (err: any) {
-      setUploadError('Dosya okunurken hata oluştu.');
+      setUploadError(t('add_doc_read_err' as any));
       setLoadingPercent(null);
     }
   };
@@ -159,7 +156,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
     } else if (extension === 'epub') {
       handleEpubFile(file);
     } else {
-      setUploadError('Desteklenmeyen dosya formatı. Lütfen PDF, DOCX, EPUB, TXT veya MD dosyası yükleyin.');
+      setUploadError(t('add_doc_unsupported_format' as any));
     }
   };
 
@@ -190,7 +187,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
   const handlePasteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
-    onAdd(title.trim() || 'Başlıksız Metin', content, ['Yapıştırılan']);
+    onAdd(title.trim() || t('add_doc_untitled' as any), content, [t('add_doc_pasted' as any)]);
     onClose();
   };
 
@@ -212,14 +209,14 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Adres okunamadı.');
+        throw new Error(data.error || t('add_doc_url_read_err' as any));
       }
       
-      onAdd(data.title || 'URL Okuma', data.text, ['Web']);
+      onAdd(data.title || t('add_doc_url_reading' as any), data.text, ['Web']);
       onClose();
     } catch (err: any) {
       console.error(err);
-      setUploadError(err.message || 'Web sayfasından veri çekilemedi. Adres korumalı veya erişilemez olabilir.');
+      setUploadError(err.message || t('add_doc_url_fetch_err' as any));
     } finally {
       setIsFetchingUrl(false);
     }
@@ -235,7 +232,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
         <div className="flex items-center justify-between p-5 border-b border-stone-150 dark:border-zinc-800">
           <h3 className="text-lg font-bold text-stone-900 dark:text-zinc-100 flex items-center gap-2">
             <FileDown className="w-5 h-5 text-indigo-600" />
-            Okuma Belgesi Ekle
+            {t('add_doc_title' as any)}
           </h3>
           <button 
             onClick={onClose}
@@ -255,7 +252,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                 : 'text-stone-500 dark:text-zinc-400 hover:text-stone-700'
             }`}
           >
-            Dosya Yükle
+            {t('add_doc_tab_upload' as any)}
           </button>
           <button
             onClick={() => setActiveTab('paste')}
@@ -265,7 +262,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                 : 'text-stone-500 dark:text-zinc-400 hover:text-stone-700'
             }`}
           >
-            Metin Yapıştır
+            {t('add_doc_tab_paste' as any)}
           </button>
           <button
             onClick={() => setActiveTab('url')}
@@ -275,7 +272,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                 : 'text-stone-500 dark:text-zinc-400 hover:text-stone-700'
             }`}
           >
-            Web URL'si
+            {t('add_doc_tab_url' as any)}
           </button>
         </div>
 
@@ -297,7 +294,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                 <div className="flex flex-col items-center justify-center py-10 gap-3">
                   <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
                   <span className="text-sm font-semibold text-stone-800 dark:text-zinc-200">
-                    Dosya Ayrıştırılıyor...
+                    {t('add_doc_parsing' as any)}
                   </span>
                   <div className="w-1/2 h-2 rounded-full bg-stone-100 overflow-hidden mt-1">
                     <div 
@@ -322,10 +319,10 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                   >
                     <UploadCloud className="w-10 h-10 text-stone-400 dark:text-zinc-500 mb-3" />
                     <span className="text-sm font-semibold text-stone-800 dark:text-zinc-200">
-                      Sürükleyip Bırakın veya Tıklayın
+                      {t('add_doc_drag_drop' as any)}
                     </span>
                     <span className="text-xs text-stone-400 mt-1">
-                      Desteklenen formatlar: EPUB (.epub), PDF, Word (.docx), TXT veya Markdown (.md)
+                      {t('add_doc_formats_desc' as any)}
                     </span>
                     <input
                       type="file"
@@ -339,10 +336,10 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                   <div className="p-3.5 bg-indigo-50/40 border border-indigo-100/50 dark:bg-zinc-950/10 dark:border-zinc-900 rounded-xl">
                     <h5 className="text-xs font-semibold text-indigo-900 dark:text-indigo-400 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5" />
-                      Client-Side Gizlilik Önceliği
+                      {t('add_doc_privacy_title' as any)}
                     </h5>
                     <p className="text-[11px] text-stone-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                      Yüklediğiniz kitap veya pdf dosyaları hiçbir uzak sunucuya yüklenmez, doğrudan tarayıcınızda yerel bellek üzerinden çözümlenir ve kütüphanenizde saklanır.
+                      {t('add_doc_privacy_desc' as any)}
                     </p>
                   </div>
                 </>
@@ -354,24 +351,24 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
           {activeTab === 'paste' && (
             <form onSubmit={handlePasteSubmit} className="flex flex-col gap-4">
               <div>
-                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">Belge Başlığı</label>
+                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">{t('add_doc_title_label' as any)}</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Seçmeli (örn: Sapiens - Özet)"
+                  placeholder={t('add_doc_title_placeholder' as any)}
                   className="w-full mt-1 px-3 py-2 text-sm border border-stone-200 dark:border-zinc-800 bg-white dark:bg-stone-900 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 text-stone-900 dark:text-zinc-100"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">Metin İçeriği</label>
+                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">{t('add_doc_content_label' as any)}</label>
                 <textarea
                   required
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   rows={8}
-                  placeholder="Okumak istediğiniz metni buraya yapıştırın veya yazın..."
+                  placeholder={t('add_doc_content_placeholder' as any)}
                   className="w-full mt-1 p-3 text-sm border border-stone-200 dark:border-zinc-800 bg-white dark:bg-stone-900 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 text-stone-900 dark:text-zinc-100"
                 />
               </div>
@@ -381,7 +378,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                 disabled={!content.trim()}
                 className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold rounded-xl text-xs transition-all cursor-pointer"
               >
-                Kütüphaneye Ekle
+                {t('add_doc_add_btn' as any)}
               </button>
             </form>
           )}
@@ -390,7 +387,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
           {activeTab === 'url' && (
             <form onSubmit={handleUrlFetch} className="flex flex-col gap-4">
               <div>
-                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">Makale veya Blog Sayfası Adresi</label>
+                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">{t('add_doc_url_label' as any)}</label>
                 <div className="flex gap-2 mt-1">
                   <div className="relative flex-1">
                     <Globe className="absolute left-3 top-2.5 w-4.5 h-4.5 text-stone-400" />
@@ -399,7 +396,7 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                       required
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://anadolutr.com/makale-basligi"
+                      placeholder={t('add_doc_url_placeholder' as any)}
                       className="w-full pl-9 pr-3 py-2 text-sm border border-stone-200 dark:border-zinc-800 bg-white dark:bg-stone-900 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 text-stone-900 dark:text-zinc-100"
                     />
                   </div>
@@ -409,14 +406,14 @@ export default function AddDocumentModal({ onClose, onAdd }: AddDocumentModalPro
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
                   >
                     {isFetchingUrl ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      t('add_doc_url_btn_fetching' as any)
                     ) : (
-                      'Çek ve Ekle'
+                      t('add_doc_url_btn_fetch' as any)
                     )}
                   </button>
                 </div>
                 <span className="text-[10px] text-stone-400 leading-relaxed mt-1.5 block">
-                  Web sayfasındaki reklamlar, menüler ve şablon artıkları otomatik olarak ayırt edilecek; sadece ana okuma metni kütüphanenize eklenecektir.
+                  {t('add_doc_url_desc' as any)}
                 </span>
               </div>
             </form>

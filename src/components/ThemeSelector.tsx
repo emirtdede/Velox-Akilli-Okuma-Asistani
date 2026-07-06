@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { ThemeType, THEMES, ThemeConfig } from '../types';
+import { useTranslation } from '../utils/i18n';
 
 interface ThemeSelectorProps {
   currentTheme: ThemeType;
@@ -12,15 +13,24 @@ interface ThemeSelectorProps {
 }
 
 export default function ThemeSelector({ currentTheme, onChangeTheme }: ThemeSelectorProps) {
+  const { lang } = useTranslation();
   return (
     <div className="flex flex-col gap-2 p-2">
       <span className="text-xs font-semibold uppercase tracking-wider opacity-60">
-        Arayüz Teması / Okuma Vibe'ı
+        {lang === 'tr' ? "Arayüz Teması / Okuma Vibe'ı" : "Interface Theme / Reading Vibe"}
       </span>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
         {(Object.keys(THEMES) as ThemeType[]).map((key) => {
           const theme: ThemeConfig = THEMES[key];
           const isActive = currentTheme === key;
+          const name = lang === 'tr' ? theme.name : (
+            key === 'light' ? 'Minimal Light (Apple Style)' :
+            key === 'dark' ? 'Elegant Dark (Velox)' :
+            key === 'sepia' ? 'Sepia (Kindle Feel)' :
+            key === 'amoled' ? 'AMOLED (Deep Black)' :
+            key === 'nord' ? 'Nord (Ice Blue & Gray)' :
+            key === 'matrix' ? 'Matrix (Hacker Dream)' : theme.name
+          );
 
           return (
             <button
@@ -39,7 +49,7 @@ export default function ThemeSelector({ currentTheme, onChangeTheme }: ThemeSele
                 <span className={`w-3 h-3 rounded-full ${theme.accent}`} />
                 <span className="w-3 h-3 rounded-full bg-red-500" />
               </div>
-              <span className="text-xs font-medium truncate w-full">{theme.name.split(' (')[0]}</span>
+              <span className="text-xs font-medium truncate w-full">{name.split(' (')[0]}</span>
             </button>
           );
         })}

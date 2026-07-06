@@ -342,34 +342,43 @@ async function startServer() {
 
     try {
       const config = getRequestAiConfig(req);
-      console.log(`[AI] Summarize requested via ${config.provider}. Text length: ${text.length}`);
+      const lang = req.headers['x-ai-lang'] || 'tr';
+      console.log(`[AI] Summarize requested via ${config.provider}. Text length: ${text.length}. Lang: ${lang}`);
 
       const schema = {
         type: Type.OBJECT,
         properties: {
           mainIdea: {
             type: Type.STRING,
-            description: 'Metnin ana fikri veya temel tezi (Tek cümle)'
+            description: lang === 'tr' ? 'Metnin ana fikri veya temel tezi (Tek cümle)' : 'Main idea or core thesis of the text (Single sentence)'
           },
           keyPoints: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: 'Metinden çıkarılan en önemli 3-5 nokta'
+            description: lang === 'tr' ? 'Metinden çıkarılan en önemli 3-5 nokta' : 'Top 3-5 key takeaways extracted from the text'
           },
           summary: {
             type: Type.STRING,
-            description: 'Metnin 2-3 cümlelik sade ve akıcı Türkçe özeti'
+            description: lang === 'tr' ? 'Metnin 2-3 cümlelik sade ve akıcı Türkçe özeti' : 'A simple and fluent summary of the text in 2-3 sentences'
           }
         },
         required: ['mainIdea', 'keyPoints', 'summary']
       };
 
-      const prompt = `Aşağıdaki metni analiz et ve şu 3 alanı içeren Türkçe bir özet çıkar:
+      const prompt = lang === 'tr'
+        ? `Aşağıdaki metni analiz et ve şu 3 alanı içeren Türkçe bir özet çıkar:
 1. Ana Fikir (Kısa ve net bir cümle)
 2. Önemli Noktalar (En fazla 5 adet can alıcı madde)
 3. Özet (Metnin ana hatlarını açıklayan 2-3 cümlelik akıcı paragraf)
 
 Metin:
+${text.slice(0, 5000)}`
+        : `Analyze the following text and extract a summary containing these 3 fields in English:
+1. Main Idea (A short and clear sentence)
+2. Key Points (Maximum of 5 crucial bullet points)
+3. Summary (A fluent paragraph of 2-3 sentences explaining the main outlines of the text)
+
+Text:
 ${text.slice(0, 5000)}`;
 
       const parsed = await generateStructuredJson(config, prompt, schema);
@@ -390,34 +399,41 @@ ${text.slice(0, 5000)}`;
 
     try {
       const config = getRequestAiConfig(req);
-      console.log(`[AI] Difficulty Analysis requested via ${config.provider}. Text length: ${text.length}`);
+      const lang = req.headers['x-ai-lang'] || 'tr';
+      console.log(`[AI] Difficulty Analysis requested via ${config.provider}. Text length: ${text.length}. Lang: ${lang}`);
 
       const schema = {
         type: Type.OBJECT,
         properties: {
           score: {
             type: Type.INTEGER,
-            description: '1 ile 100 arasında zorluk puanı (1=Çok Basit, 100=İleri Seviye İngilizce/Akademik Türkçe)'
+            description: lang === 'tr' ? '1 ile 100 arasında zorluk puanı (1=Çok Basit, 100=İleri Seviye İngilizce/Akademik Türkçe)' : 'Difficulty score between 1 and 100 (1=Very Simple, 100=Advanced/Academic)'
           },
           level: {
             type: Type.STRING,
-            description: 'Okuma kolaylığı düzeyi. Sadece şu üçünden biri olmalı: "Kolay", "Orta", "Zor"'
+            description: lang === 'tr' ? 'Okuma kolaylığı düzeyi. Sadece şu üçünden biri olmalı: "Kolay", "Orta", "Zor"' : 'Reading level. Must be exactly one of: "Easy", "Medium", "Hard"'
           },
           complexWords: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: 'Metinde geçen zor, az bilinen veya teknik kelimeler/kavramlar listesi'
+            description: lang === 'tr' ? 'Metinde geçen zor, az bilinen veya teknik kelimeler/kavramlar listesi' : 'List of difficult, rare or technical words/concepts found in the text'
           },
           description: {
             type: Type.STRING,
-            description: 'Metnin neden bu seviyede olduğuna dair Türkçe açıklamalı 1-2 cümlelik değerlendirme'
+            description: lang === 'tr' ? 'Metnin neden bu seviyede olduğuna dair Türkçe açıklamalı 1-2 cümlelik değerlendirme' : 'A 1-2 sentence evaluation in English explaining why the text is at this level'
           }
         },
         required: ['score', 'level', 'complexWords', 'description']
       };
 
-      const prompt = `Aşağıdaki Türkçe veya yabancı dildeki metnin okuma zorluğunu analiz et.
+      const prompt = lang === 'tr'
+        ? `Aşağıdaki Türkçe veya yabancı dildeki metnin okuma zorluğunu analiz et.
 Zorluk seviyesini (Kolay, Orta, Zor şeklinde), zorluk puanını (1-100 ölçeğinde), metinde geçen zor/tıbbi/sektörel/akademik 3-7 kelimeyi ayırt et ve neden bu düzeyde olduğunu açıklayan kısa bir değerlendirme metni yaz.
+
+Metin:
+${text.slice(0, 3000)}`
+        : `Analyze the reading difficulty of the following text in English or other languages.
+Determine the difficulty level (must be exactly one of: Easy, Medium, Hard), difficulty score (on a 1-100 scale), identify 3-7 difficult/medical/industry/academic words, and write a short evaluation text in English explaining why it is at this level.
 
 Metin:
 ${text.slice(0, 3000)}`;
@@ -440,7 +456,8 @@ ${text.slice(0, 3000)}`;
 
     try {
       const config = getRequestAiConfig(req);
-      console.log(`[AI] Define requested via ${config.provider} for: "${word}" in Context: "${context || 'No context'}"`);
+      const lang = req.headers['x-ai-lang'] || 'tr';
+      console.log(`[AI] Define requested via ${config.provider} for: "${word}" in Context: "${context || 'No context'}". Lang: ${lang}`);
 
       const schema = {
         type: Type.OBJECT,
@@ -448,26 +465,31 @@ ${text.slice(0, 3000)}`;
           word: { type: Type.STRING },
           definition: {
             type: Type.STRING,
-            description: 'Kelimenin net, sade ve anlaşılır Türkçe sözlük anlamı'
+            description: lang === 'tr' ? 'Kelimenin net, sade ve anlaşılır Türkçe sözlük anlamı' : 'Clear, simple and understandable dictionary definition of the word in English'
           },
           synonyms: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: 'Eş anlamlı olan veya benzer anlama gelen 2-4 kelime'
+            description: lang === 'tr' ? 'Eş anlamlı olan veya benzer anlama gelen 2-4 kelime' : '2-4 synonyms or closely related words in English'
           },
           examples: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: 'Kelimenin kullanımını gösteren 2 adet örnek Türkçe cümle'
+            description: lang === 'tr' ? 'Kelimenin kullanımını gösteren 2 adet örnek Türkçe cümle' : '2 sample sentences showing the usage of the word in English'
           }
         },
         required: ['word', 'definition', 'synonyms', 'examples']
       };
 
-      const prompt = `Aşağıdaki kelimenin anlamını${context ? ` (verilen bağlam dikkate alınarak)` : ''} Türkçe olarak açıkla. Eş anlamlılarını ve kelimenin yer aldığı 2 tane örnek cümle yaz.
+      const prompt = lang === 'tr'
+        ? `Aşağıdaki kelimenin anlamını${context ? ` (verilen bağlam dikkate alınarak)` : ''} Türkçe olarak açıkla. Eş anlamlılarını ve kelimenin yer aldığı 2 tane örnek cümle yaz.
 
 Aranan Kelime: "${word}"
-${context ? `Bağlam / Cümle: "${context}"` : ''}`;
+${context ? `Bağlam / Cümle: "${context}"` : ''}`
+        : `Explain the meaning of the following word${context ? ` (taking into account the given context)` : ''} in English. Write its synonyms and 2 sample sentences in English where the word is used.
+
+Search Word: "${word}"
+${context ? `Context / Sentence: "${context}"` : ''}`;
 
       const parsed = await generateStructuredJson(config, prompt, schema);
       res.json(parsed);
@@ -476,6 +498,8 @@ ${context ? `Bağlam / Cümle: "${context}"` : ''}`;
       res.status(500).json({ error: error.message || 'Sözlük anlamı çıkarılamadı.' });
     }
   });
+
+
 
   // 3.5 Active Recall & Comprehension Quiz Route
   app.post(['/api/ai/comprehension', '/api/gemini/comprehension'], async (req, res) => {
@@ -487,7 +511,8 @@ ${context ? `Bağlam / Cümle: "${context}"` : ''}`;
 
     try {
       const config = getRequestAiConfig(req);
-      console.log(`[AI] Comprehension Quiz requested via ${config.provider} for: "${title || 'Untitled'}" (Questions: ${questionCount}, Difficulty: ${difficulty})`);
+      const lang = req.headers['x-ai-lang'] || 'tr';
+      console.log(`[AI] Comprehension Quiz requested via ${config.provider} for: "${title || 'Untitled'}" (Questions: ${questionCount}, Difficulty: ${difficulty}). Lang: ${lang}`);
 
       const schema = {
         type: Type.OBJECT,
@@ -497,31 +522,38 @@ ${context ? `Bağlam / Cümle: "${context}"` : ''}`;
             items: {
               type: Type.OBJECT,
               properties: {
-                question: { type: Type.STRING, description: 'Sorunun metni' },
+                question: { type: Type.STRING, description: lang === 'tr' ? 'Sorunun metni' : 'The question text' },
                 options: {
                   type: Type.ARRAY,
                   items: { type: Type.STRING },
-                  description: '4 adet cevap şıkkı (A, B, C, D)'
+                  description: lang === 'tr' ? '4 adet cevap şıkkı (A, B, C, D)' : '4 choice options (A, B, C, D)'
                 },
-                correctOptionIndex: { type: Type.INTEGER, description: 'Doğru şıkkın sıfır tabanlı indeksi (0-3)' },
-                explanation: { type: Type.STRING, description: 'Neden bu şıkkın doğru olduğuna dair kısa açıklama' }
+                correctOptionIndex: { type: Type.INTEGER, description: lang === 'tr' ? 'Doğru şıkkın sıfır tabanlı indeksi (0-3)' : 'Zero-based index of the correct option (0-3)' },
+                explanation: { type: Type.STRING, description: lang === 'tr' ? 'Neden bu şıkkın doğru olduğuna dair kısa açıklama' : 'A brief explanation of why this option is correct' }
               },
               required: ['question', 'options', 'correctOptionIndex', 'explanation']
             }
           },
           difficultyRating: {
             type: Type.INTEGER,
-            description: 'Metnin anlama ve kavrama zorluk derecesi (1-100)'
+            description: lang === 'tr' ? 'Metnin anlama ve kavrama zorluk derecesi (1-100)' : 'Reading comprehension difficulty rating of the text (1-100)'
           }
         },
         required: ['questions', 'difficultyRating']
       };
 
-      const prompt = `Aşağıdaki metnden ${questionCount} adet çoktan seçmeli (A, B, C, D) Türkçe kavrama sorusu oluştur. Okuduğunu anlama seviyesini test etsin.
+      const prompt = lang === 'tr'
+        ? `Aşağıdaki metnden ${questionCount} adet çoktan seçmeli (A, B, C, D) Türkçe kavrama sorusu oluştur. Okuduğunu anlama seviyesini test etsin.
 Sınavın zorluk derecesi "${difficulty}" olsun. Metnin tahmini kavrama zorluk derecesini (1-100 arasında) belirle.
 
 Metin Başlığı: "${title || 'Metin'}"
 Metin İçeriği:
+${text.slice(0, 4000)}`
+        : `Generate ${questionCount} multiple-choice (A, B, C, D) comprehension questions in English from the text below. It should test reading comprehension.
+The difficulty of the quiz should be equivalent to "${difficulty === 'Orta' ? 'Medium' : difficulty}". Determine the estimated reading comprehension difficulty level of the text (on a scale from 1 to 100).
+
+Text Title: "${title || 'Text'}"
+Text Content:
 ${text.slice(0, 4000)}`;
 
       const parsed = await generateStructuredJson(config, prompt, schema);
@@ -542,7 +574,8 @@ ${text.slice(0, 4000)}`;
 
     try {
       const config = getRequestAiConfig(req);
-      console.log(`[AI] Knowledge Insights requested via ${config.provider} for: "${title || 'Untitled'}"`);
+      const lang = req.headers['x-ai-lang'] || 'tr';
+      console.log(`[AI] Knowledge Insights requested via ${config.provider} for: "${title || 'Untitled'}". Lang: ${lang}`);
 
       const schema = {
         type: Type.OBJECT,
@@ -550,24 +583,30 @@ ${text.slice(0, 4000)}`;
           keyInsights: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: 'Metnden çıkarılan en önemli 3 adet kilit felsefi veya teknik bulgu (insight)'
+            description: lang === 'tr' ? 'Metnden çıkarılan en önemli 3 adet kilit felsefi veya teknik bulgu (insight)' : 'Top 3 key philosophical or technical takeaways (insights) extracted from the text'
           },
           actionableIdea: {
             type: Type.STRING,
-            description: 'Kullanıcının bugün kendi hayatında veya işinde uygulayabileceği somut bir aksiyon/alışkanlık adımı'
+            description: lang === 'tr' ? 'Kullanıcının bugün kendi hayatında veya işinde uygulayabileceği somut bir aksiyon/alışkanlık adımı' : 'A concrete actionable idea or habit step the user can apply today in their life or business'
           },
           mentalModel: {
             type: Type.STRING,
-            description: 'Metindeki dinamikleri açıklayan bir zihinsel model (Örn. Pareto İlkesi, Ebbinghaus Unutma Eğrisi, Sunk Cost Fallacy vb.)'
+            description: lang === 'tr' ? 'Metindeki dinamikleri açıklayan bir zihinsel model (Örn. Pareto İlkesi, Ebbinghaus Unutma Eğrisi, Sunk Cost Fallacy vb.)' : 'A mental model explaining the dynamics in the text (e.g., Pareto Principle, Ebbinghaus Forgetting Curve, Sunk Cost Fallacy, etc.)'
           }
         },
         required: ['keyInsights', 'actionableIdea', 'mentalModel']
       };
 
-      const prompt = `Aşağıdaki metinden 3 adet kilit öngörü (insight), 1 adet günlük hayatta doğrudan uygulanabilir eylemsel alışkanlık/fikir (Actionable Idea) ve metinle uyuşan 1 adet disiplinlerarası zihinsel model (Mental Model) çıkar. Çıktıyı tamamen Türkçe olarak ver.
+      const prompt = lang === 'tr'
+        ? `Aşağıdaki metinden 3 adet kilit öngörü (insight), 1 adet günlük hayatta doğrudan uygulanabilir eylemsel alışkanlık/fikir (Actionable Idea) ve metinle uyuşan 1 adet disiplinlerarası zihinsel model (Mental Model) çıkar. Çıktıyı tamamen Türkçe olarak ver.
 
 Metin Başlığı: "${title || 'Metin'}"
 Metin İçeriği:
+${text.slice(0, 4000)}`
+        : `Extract 3 key insights, 1 actionable idea that can be directly applied in daily life, and 1 interdisciplinary mental model matching the text below. Provide the output completely in English.
+
+Text Title: "${title || 'Text'}"
+Text Content:
 ${text.slice(0, 4000)}`;
 
       const parsed = await generateStructuredJson(config, prompt, schema);
@@ -588,7 +627,8 @@ ${text.slice(0, 4000)}`;
 
     try {
       const config = getRequestAiConfig(req);
-      console.log(`[AI] Flashcards requested via ${config.provider} for: "${title || 'Untitled'}" (Count: ${count}, Topic: ${topic})`);
+      const lang = req.headers['x-ai-lang'] || 'tr';
+      console.log(`[AI] Flashcards requested via ${config.provider} for: "${title || 'Untitled'}" (Count: ${count}, Topic: ${topic}). Lang: ${lang}`);
 
       const schema = {
         type: Type.OBJECT,
@@ -598,8 +638,8 @@ ${text.slice(0, 4000)}`;
             items: {
               type: Type.OBJECT,
               properties: {
-                front: { type: Type.STRING, description: 'Bilgi kartının ön yüzü (Soru, kavram veya terim)' },
-                back: { type: Type.STRING, description: 'Bilgi kartının arka yüzü (Cevap, tanım veya detaylı açıklama)' }
+                front: { type: Type.STRING, description: lang === 'tr' ? 'Bilgi kartının ön yüzü (Soru, kavram veya terim)' : 'Front side of the flashcard (Question, concept, or term)' },
+                back: { type: Type.STRING, description: lang === 'tr' ? 'Bilgi kartının arka yüzü (Cevap, tanım veya detaylı açıklama)' : 'Back side of the flashcard (Answer, definition, or detailed explanation)' }
               },
               required: ['front', 'back']
             }
@@ -608,12 +648,16 @@ ${text.slice(0, 4000)}`;
         required: ['flashcards']
       };
 
-      const prompt = `Aşağıdaki metnden ${count} adet öğretici bilgi kartı (flashcard) oluştur. 
-Her kartın bir ön yüzü (soru/kavram) ve bir arka yüzü (cevap/açıklama) olmalıdır. 
-Kartların odak konusu veya türü: "${topic}" olsun. Çıktı dilinin tamamen Türkçe olmasına dikkat et.
+      const prompt = lang === 'tr'
+        ? `Aşağıdaki metnden ${count} adet öğretici bilgi kartı (flashcard) oluştur. Kartlar "${topic}" konusuyla ilgili veya genel önemli bilgileri içersin. Çıktıyı tamamen Türkçe olarak ver.
 
 Metin Başlığı: "${title || 'Metin'}"
 Metin İçeriği:
+${text.slice(0, 4000)}`
+        : `Generate ${count} educational flashcards from the text below. The cards should be relevant to the topic "${topic}" or contain general important information. Provide the output completely in English.
+
+Text Title: "${title || 'Text'}"
+Text Content:
 ${text.slice(0, 4000)}`;
 
       const parsed = await generateStructuredJson(config, prompt, schema);
@@ -623,6 +667,8 @@ ${text.slice(0, 4000)}`;
       res.status(500).json({ error: error.message || 'Bilgi kartları üretilemedi.' });
     }
   });
+
+
 
   // 4. Extract text from URL
   app.post(['/api/content/extract-url', '/api/gemini/extract-url'], async (req, res) => {

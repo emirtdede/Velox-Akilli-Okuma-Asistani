@@ -202,6 +202,44 @@ function readLocalWithLegacy(key: string, legacyKey: string) {
 
 export default function App() {
   const { t, lang, setLanguage } = useTranslation();
+
+  const getLocalBook = (book: any) => {
+    if (!book) return book;
+    if (book.id === 'sample-welcome' && lang !== 'tr') {
+      return {
+        ...book,
+        title: 'Velox Speed Reading Guide',
+        content: `Welcome to Velox! This modern application is specifically designed to improve your speed reading skills, maximize your focus, and multiply your reading productivity.
+
+By using the RSVP (Rapid Serial Visual Presentation) engine in our app, you can read words fluidly one-by-one or in groups without straining your eye muscles or losing time scanning lines.
+
+Thanks to the Optimal Recognition Point (ORP) feature, the focus letter in the middle of the word is marked in red. This allows your eye to grasp the meaning of the word in milliseconds and reduces word searching to zero.
+
+The Smart Pause System adds small wait times at punctuation marks to mimic natural reading. For example, it automatically slows down at commas (+100 ms), periods (+300 ms), or paragraph ends (+500 ms) to capture a flawless cognitive rhythm.
+
+Thanks to our AI assistant, you can summarize any text you read with a single click, analyze word difficulty, and instantly learn the meaning, synonyms, and example sentences of any word you click!
+
+Shortcut Keys:
+- [Space]: Play / Pause
+- [Left Arrow]: Rewind 10 words
+- [Right Arrow]: Fast forward 10 words
+- [Up Arrow]: Increase speed (+25 WPM)
+- [Down Arrow]: Decrease speed (-25 WPM)
+- [Esc]: Exit reader safely
+
+Now you can click the "Start Reading" button to have your first experience, and easily add your own book, word, md, or pdf documents to your library! We wish you success.`,
+        tags: ['Guide', 'Beginner'],
+        difficultyInfo: book.difficultyInfo ? {
+          ...book.difficultyInfo,
+          level: 'Easy',
+          complexWords: ['RSVP', 'ORP', 'Cognitive', 'Optimal'],
+          description: 'The text is written in a simple, instructive, and guiding language, making it highly fluid for all readers.'
+        } : null
+      };
+    }
+    return book;
+  };
+
   const initialRoute = parseRoute();
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.tab);
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('content');
@@ -360,10 +398,52 @@ export default function App() {
     return defaultGoals;
   });
 
-  const [readingReport, setReadingReport] = useState<string>('');
-  const [quizReport, setQuizReport] = useState<string>('');
-  const [cardReport, setCardReport] = useState<string>('');
+  const [readingReport, setReadingReport] = useState<string>(() => {
+    return localStorage.getItem('velox_reading_report_active') || '';
+  });
+  const [quizReport, setQuizReport] = useState<string>(() => {
+    return localStorage.getItem('velox_quiz_report_active') || '';
+  });
+  const [cardReport, setCardReport] = useState<string>(() => {
+    return localStorage.getItem('velox_card_report_active') || '';
+  });
+
+  const [readingReportHistory, setReadingReportHistory] = useState<{ id: string; date: string; content: string }[]>(() => {
+    try {
+      const stored = localStorage.getItem('velox_reading_reports_history');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+  const [quizReportHistory, setQuizReportHistory] = useState<{ id: string; date: string; content: string }[]>(() => {
+    try {
+      const stored = localStorage.getItem('velox_quiz_reports_history');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+  const [cardReportHistory, setCardReportHistory] = useState<{ id: string; date: string; content: string }[]>(() => {
+    try {
+      const stored = localStorage.getItem('velox_card_reports_history');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
   const [reportLoading, setReportLoading] = useState<string | null>(null);
+
+  const handleDeleteHistoryItem = (category: 'reading' | 'quiz' | 'cards', id: string) => {
+    if (category === 'reading') {
+      const updated = readingReportHistory.filter(item => item.id !== id);
+      setReadingReportHistory(updated);
+      localStorage.setItem('velox_reading_reports_history', JSON.stringify(updated));
+    } else if (category === 'quiz') {
+      const updated = quizReportHistory.filter(item => item.id !== id);
+      setQuizReportHistory(updated);
+      localStorage.setItem('velox_quiz_reports_history', JSON.stringify(updated));
+    } else if (category === 'cards') {
+      const updated = cardReportHistory.filter(item => item.id !== id);
+      setCardReportHistory(updated);
+      localStorage.setItem('velox_card_reports_history', JSON.stringify(updated));
+    }
+  };
 
   const showCustomAlert = (message: string, title = 'Bilgi') => {
     setDialogConfig({
@@ -397,8 +477,9 @@ export default function App() {
   const mutedClass = isLightTheme ? 'text-stone-600' : 'text-zinc-400';
 
   const selectedBook = useMemo(() => {
-    return books.find(book => book.id === selectedBookId) || books[0] || null;
-  }, [books, selectedBookId]);
+    const found = books.find(book => book.id === selectedBookId) || books[0] || null;
+    return getLocalBook(found);
+  }, [books, selectedBookId, lang]);
 
   const recentBooks = useMemo(() => {
     return [...books].sort((left, right) => right.lastReadDate.localeCompare(left.lastReadDate)).slice(0, 6);
@@ -442,8 +523,8 @@ export default function App() {
   }, [stats.history]);
 
   useEffect(() => {
-    document.title = APP_FULL_NAME;
-  }, []);
+    document.title = lang === 'tr' ? 'Velox - Akıllı Okuma Asistanı' : 'Velox - Smart Reading Assistant';
+  }, [lang]);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREFS_KEY, sidebarMode);
@@ -498,12 +579,17 @@ export default function App() {
       setEditTitle(selectedBook.title);
       setEditContent(selectedBook.content);
       setIsEditingContent(false);
+      setComprehensionResult(selectedBook.comprehensionQuestions || null);
+      setInsightsResult(selectedBook.insightsResult || null);
     } else {
       setEditTitle('');
       setEditContent('');
       setIsEditingContent(false);
+      setComprehensionResult(null);
+      setInsightsResult(null);
     }
   }, [selectedBook]);
+
 
   const refreshBooks = () => setBooks(StorageService.getBooks());
 
@@ -630,7 +716,7 @@ export default function App() {
     setLocalModel(lModel.trim());
     setLocalModelDraft(lModel.trim());
 
-    setAiSaveMessage('Yapay zeka ayarları kaydedildi.');
+    setAiSaveMessage(lang === 'tr' ? 'Yapay zeka ayarları kaydedildi.' : 'AI settings saved.');
     refreshAiStatus(provider, geminiKey, openaiKey, claudeKey, lUrl, lModel);
   };
 
@@ -660,7 +746,7 @@ export default function App() {
     setLocalModelDraft('llama3');
 
     setAiStatus({ enabled: false, provider: 'none', checked: true });
-    setAiSaveMessage('Yapay zeka ayarları sıfırlandı.');
+    setAiSaveMessage(lang === 'tr' ? 'Yapay zeka ayarları sıfırlandı.' : 'AI settings reset.');
   };
 
   const saveBookNotes = (bookId: string) => {
@@ -670,7 +756,8 @@ export default function App() {
   const aiHeaders = () => {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-ai-provider': aiProvider
+      'x-ai-provider': aiProvider,
+      'x-ai-lang': lang
     };
     if (aiProvider === 'gemini' && geminiApiKey) {
       headers['x-ai-api-key'] = geminiApiKey;
@@ -751,6 +838,8 @@ export default function App() {
     try {
       const data = await postAi('/api/ai/comprehension', { text: selectedBook.content, title: selectedBook.title });
       setComprehensionResult(data);
+      StorageService.updateBookComprehension(selectedBook.id, data);
+      refreshBooks();
     } catch (error: any) {
       setAiError(error.message || 'Kavrama soruları üretilemedi.');
     } finally {
@@ -765,6 +854,8 @@ export default function App() {
     try {
       const data = await postAi('/api/ai/insights', { text: selectedBook.content, title: selectedBook.title });
       setInsightsResult(data);
+      StorageService.updateBookInsights(selectedBook.id, data);
+      refreshBooks();
     } catch (error: any) {
       setAiError(error.message || 'Aksiyon önerileri üretilemedi.');
     } finally {
@@ -826,6 +917,13 @@ export default function App() {
               setQuizReport={setQuizReport}
               cardReport={cardReport}
               setCardReport={setCardReport}
+              readingReportHistory={readingReportHistory}
+              setReadingReportHistory={setReadingReportHistory}
+              quizReportHistory={quizReportHistory}
+              setQuizReportHistory={setQuizReportHistory}
+              cardReportHistory={cardReportHistory}
+              setCardReportHistory={setCardReportHistory}
+              onDeleteHistoryItem={handleDeleteHistoryItem}
               reportLoading={reportLoading}
               setReportLoading={setReportLoading}
               postAi={postAi}
@@ -1083,10 +1181,10 @@ function Sidebar({
             <span className={`${labelClass} whitespace-nowrap transition-all overflow-hidden`}>{t('home_action_add')}</span>
           </button>
 
-          <div title={isCompact ? `AI ${aiEnabled ? t('st_ai_status_active') : t('st_ai_status_passive')}` : undefined} className={`${isCompact ? 'justify-center px-0 gap-0' : 'px-3 gap-3'} h-10 rounded-xl border ${theme.border} bg-white/[0.025] flex items-center`}>
+          <div title={isCompact ? (aiEnabled ? t('st_ai_status_active') : t('st_ai_status_passive')) : undefined} className={`${isCompact ? 'justify-center px-0 gap-0' : 'px-3 gap-3'} h-10 rounded-xl border ${theme.border} bg-white/[0.025] flex items-center`}>
             <span className={`w-2 h-2 rounded-full ${aiEnabled ? 'bg-emerald-400' : 'bg-stone-500'}`} />
             <span className={`${labelClass} text-[10px] font-black uppercase tracking-wide whitespace-nowrap transition-all overflow-hidden`}>
-              AI {aiEnabled ? t('st_ai_status_active') : t('st_ai_status_passive')}
+              {aiEnabled ? t('st_ai_status_active') : t('st_ai_status_passive')}
             </span>
           </div>
 
@@ -1137,6 +1235,7 @@ function HomePage({
   mutedClass,
   isLightTheme
 }: any) {
+  const { t, lang } = useTranslation();
   // Goal Period Tab State
   const [goalPeriod, setGoalPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
   const [isEditingGoals, setIsEditingGoals] = useState(false);
@@ -1236,19 +1335,19 @@ function HomePage({
 
       const totalScore = readVal + quizVal + cardVal + clickVal;
       return {
-        day: date.toLocaleDateString('tr-TR', { weekday: 'short' }),
+        day: date.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { weekday: 'short' }),
         score: totalScore || 1
       };
     });
-  }, [stats.history, quizHistory, flashcards]);
+  }, [stats.history, quizHistory, flashcards, lang]);
 
   return (
     <section className="flex flex-col gap-6">
       {/* 1. Header with navigation action */}
       <div className="flex justify-between items-center gap-4">
         <PageHeader
-          title="Anasayfa"
-          description="Kişiselleştirilmiş hızlı kısayollarınız, hedefleriniz, belgeleriniz ve okuma ritminiz."
+          title={lang === 'tr' ? 'Anasayfa' : 'Dashboard'}
+          description={lang === 'tr' ? 'Kişiselleştirilmiş hızlı kısayollarınız, hedefleriniz, belgeleriniz ve okuma ritminiz.' : 'Your personalized shortcuts, goals, documents, and reading rhythm.'}
           titleClass={titleClass}
           mutedClass={mutedClass}
         />
@@ -1256,7 +1355,7 @@ function HomePage({
           onClick={() => onNavigateToTab('progress')}
           className="h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-lg shadow-indigo-600/10 flex items-center gap-1.5 shrink-0"
         >
-          <Sparkles className="w-4 h-4" /> AI Gelişim Raporu Al
+          <Sparkles className="w-4 h-4" /> {lang === 'tr' ? 'AI Gelişim Raporu Al' : 'Get AI Progress Report'}
         </button>
       </div>
 
@@ -1269,7 +1368,7 @@ function HomePage({
 
           <div className="flex flex-col gap-2 relative z-10">
             <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-500/10 px-2.5 py-1 rounded-full w-max">
-              OKUMAYA KALDIĞINIZ YER
+              {lang === 'tr' ? 'OKUMAYA KALDIĞINIZ YER' : 'CONTINUE READING'}
             </span>
             {selectedBook ? (
               <>
@@ -1277,18 +1376,18 @@ function HomePage({
                   {selectedBook.title} 🚀
                 </h2>
                 <div className={`flex items-center gap-4 text-xs font-bold mt-1 ${mutedClass}`}>
-                  <span>Kalan: ~1 dk</span>
+                  <span>{lang === 'tr' ? 'Kalan: ~1 dk' : 'Remaining: ~1 min'}</span>
                   <span>•</span>
-                  <span>%{selectedBook.progress || 0} tamamlandı</span>
+                  <span>{lang === 'tr' ? `%${selectedBook.progress || 0} tamamlandı` : `%${selectedBook.progress || 0} completed`}</span>
                 </div>
               </>
             ) : (
               <>
                 <h2 className={`text-lg font-black mt-2 ${titleClass}`}>
-                  Henüz belge seçilmedi
+                  {lang === 'tr' ? 'Henüz belge seçilmedi' : 'No document selected yet'}
                 </h2>
                 <p className={`text-xs font-bold ${mutedClass}`}>
-                  Çalışma Alanı üzerinden yeni belge ekleyebilirsin.
+                  {lang === 'tr' ? 'Çalışma Alanı üzerinden yeni belge ekleyebilirsin.' : 'You can add new documents via the Workspace.'}
                 </p>
               </>
             )}
@@ -1305,7 +1404,7 @@ function HomePage({
                 onClick={() => onStartReading(selectedBook)}
                 className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-indigo-600/10 transition-all"
               >
-                <Play className="w-3.5 h-3.5 fill-white" /> Okumayı Sürdür
+                <Play className="w-3.5 h-3.5 fill-white" /> {lang === 'tr' ? 'Okumayı Sürdür' : 'Continue Reading'}
               </button>
             )}
           </div>
@@ -1314,16 +1413,16 @@ function HomePage({
         {/* Circular Progress Target Ring Card */}
         <div className={`p-6 rounded-3xl border flex flex-col gap-4 ${surfaceClass}`}>
           <div className="flex items-center justify-between">
-            <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>BUGÜNKÜ HEDEFLER</span>
+            <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'BUGÜNKÜ HEDEFLER' : "TODAY'S GOALS"}</span>
             {!isEditingGoals && (
-              <button onClick={() => { setEditGoals({ ...userGoals }); setIsEditingGoals(true); }} className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline">Hedefleri Düzenle</button>
+              <button onClick={() => { setEditGoals({ ...userGoals }); setIsEditingGoals(true); }} className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline">{lang === 'tr' ? 'Hedefleri Düzenle' : 'Edit Goals'}</button>
             )}
           </div>
 
           {isEditingGoals ? (
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2 p-2.5 bg-stone-50 dark:bg-zinc-900/40 rounded-2xl border border-stone-200 dark:border-zinc-800">
-                <span className="text-[9px] font-black uppercase text-stone-500 tracking-wider">Hedef Seçimi ve Görünürlük</span>
+                <span className="text-[9px] font-black uppercase text-stone-500 tracking-wider">{lang === 'tr' ? 'Hedef Seçimi ve Görünürlük' : 'Goal Selection & Visibility'}</span>
                 <div className="flex flex-col gap-1.5">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1332,7 +1431,7 @@ function HomePage({
                       onChange={(e) => setEditGoals({ ...editGoals, showReadingGoal: e.target.checked })}
                       className="rounded border-stone-300 dark:border-zinc-800 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span className="text-xs font-bold">Okuma Hedefi</span>
+                    <span className="text-xs font-bold">{lang === 'tr' ? 'Okuma Hedefi' : 'Reading Goal'}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1341,7 +1440,7 @@ function HomePage({
                       onChange={(e) => setEditGoals({ ...editGoals, showQuizzesGoal: e.target.checked })}
                       className="rounded border-stone-300 dark:border-zinc-800 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span className="text-xs font-bold">Quiz Hedefi</span>
+                    <span className="text-xs font-bold">{lang === 'tr' ? 'Quiz Hedefi' : 'Quiz Goal'}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1350,14 +1449,14 @@ function HomePage({
                       onChange={(e) => setEditGoals({ ...editGoals, showCardsGoal: e.target.checked })}
                       className="rounded border-stone-300 dark:border-zinc-800 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span className="text-xs font-bold">Bilgi Kartı Hedefi</span>
+                    <span className="text-xs font-bold">{lang === 'tr' ? 'Bilgi Kartı Hedefi' : 'Flashcard Goal'}</span>
                   </label>
                 </div>
               </div>
 
               {editGoals.showReadingGoal !== false && (
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-stone-505">Okuma Hedefi (Kelime)</span>
+                  <span className="text-[10px] font-bold text-stone-505">{lang === 'tr' ? 'Okuma Hedefi (Kelime)' : 'Reading Goal (Words)'}</span>
                   <input
                     type="number"
                     min="100"
@@ -1372,7 +1471,7 @@ function HomePage({
               )}
               {editGoals.showQuizzesGoal !== false && (
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-stone-505">Quiz Hedefi (Adet)</span>
+                  <span className="text-[10px] font-bold text-stone-505">{lang === 'tr' ? 'Quiz Hedefi (Adet)' : 'Quiz Goal (Count)'}</span>
                   <input
                     type="number"
                     min="1"
@@ -1387,7 +1486,7 @@ function HomePage({
               )}
               {editGoals.showCardsGoal !== false && (
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-stone-505">Bilgi Kartı Hedefi (Tekrar)</span>
+                  <span className="text-[10px] font-bold text-stone-505">{lang === 'tr' ? 'Bilgi Kartı Hedefi (Tekrar)' : 'Flashcard Goal (Reviews)'}</span>
                   <input
                     type="number"
                     min="1"
@@ -1401,17 +1500,21 @@ function HomePage({
                 </label>
               )}
               <div className="flex gap-2 mt-1">
-                <button onClick={handleSaveGoals} className="h-8 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black">Kaydet</button>
-                <button onClick={() => setIsEditingGoals(false)} className={`h-8 px-3 rounded-xl border text-[10px] font-black ${isLightTheme ? 'border-stone-300 hover:bg-stone-50' : 'border-stone-250 dark:border-zinc-800'}`}>İptal</button>
+                <button onClick={handleSaveGoals} className="h-8 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black">{lang === 'tr' ? 'Kaydet' : 'Save'}</button>
+                <button onClick={() => setIsEditingGoals(false)} className={`h-8 px-3 rounded-xl border text-[10px] font-black ${isLightTheme ? 'border-stone-300 hover:bg-stone-50' : 'border-stone-250 dark:border-zinc-800'}`}>{lang === 'tr' ? 'İptal' : 'Cancel'}</button>
               </div>
             </div>
           ) : (
             <div>
               {userGoals.showReadingGoal === false && userGoals.showQuizzesGoal === false && userGoals.showCardsGoal === false ? (
-                <p className={`text-xs text-center py-6 ${mutedClass}`}>Tüm hedefler gizlendi. Düzenlemek için sağ üstten "Hedefleri Düzenle" butonuna tıklayabilirsiniz.</p>
+                <p className={`text-xs text-center py-6 ${mutedClass}`}>{lang === 'tr' ? 'Tüm hedefler gizlendi. Düzenlemek için sağ üstten "Hedefleri Düzenle" butonuna tıklayabilirsiniz.' : 'All goals hidden. Click "Edit Goals" at top right to edit.'}</p>
               ) : (
                 <div className={`grid grid-cols-1 ${
-                  visibleGoalsCount === 2 ? 'md:grid-cols-2' : visibleGoalsCount === 3 ? 'md:grid-cols-3' : ''
+                  visibleGoalsCount === 2
+                    ? 'sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2'
+                    : visibleGoalsCount === 3
+                    ? 'sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3'
+                    : ''
                 } gap-4`}>
                   {/* Kelime Hedefi */}
                   {userGoals.showReadingGoal !== false && (
@@ -1419,11 +1522,11 @@ function HomePage({
                       <div className="flex justify-between items-center">
                         <span className="flex items-center gap-1.5 font-black text-xs text-current">
                           <BookOpen className="w-4 h-4 text-indigo-500" />
-                          Okuma
+                          {lang === 'tr' ? 'Okuma' : 'Reading'}
                         </span>
                         <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 text-[10px] font-black shrink-0">
                           <Flame className="w-3 h-3 fill-amber-500" />
-                          <span>{stats.dailyStreak || 0} Gün</span>
+                          <span>{stats.dailyStreak || 0} {lang === 'tr' ? 'Gün' : 'Days'}</span>
                         </div>
                       </div>
                       <div className="flex flex-col gap-1.5">
@@ -1431,7 +1534,7 @@ function HomePage({
                           <div className="h-full rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${wordPercentage}%` }} />
                         </div>
                         <div className={`flex justify-between text-[10px] font-bold ${mutedClass}`}>
-                          <span>{todayWords} / {userGoals.dailyWords.toLocaleString()} Kelime</span>
+                          <span>{todayWords} / {userGoals.dailyWords.toLocaleString()} {lang === 'tr' ? 'Kelime' : 'Words'}</span>
                           <span>%{wordPercentage}</span>
                         </div>
                       </div>
@@ -1444,11 +1547,11 @@ function HomePage({
                       <div className="flex justify-between items-center">
                         <span className="flex items-center gap-1.5 font-black text-xs text-current">
                           <HelpCircle className="w-4 h-4 text-pink-500" />
-                          Quizler
+                          {lang === 'tr' ? 'Quizler' : 'Quizzes'}
                         </span>
                         <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-pink-500/10 text-pink-500 text-[10px] font-black shrink-0">
                           <Flame className="w-3 h-3 fill-pink-500" />
-                          <span>{stats.quizStreak || 0} Gün</span>
+                          <span>{stats.quizStreak || 0} {lang === 'tr' ? 'Gün' : 'Days'}</span>
                         </div>
                       </div>
                       <div className="flex flex-col gap-1.5">
@@ -1456,7 +1559,7 @@ function HomePage({
                           <div className="h-full rounded-full bg-pink-500 transition-all duration-300" style={{ width: `${quizPercentage}%` }} />
                         </div>
                         <div className={`flex justify-between text-[10px] font-bold ${mutedClass}`}>
-                          <span>{todayQuizzesCount} / {userGoals.dailyQuizzes.toLocaleString()} Quiz</span>
+                          <span>{todayQuizzesCount} / {userGoals.dailyQuizzes.toLocaleString()} {lang === 'tr' ? 'Quiz' : 'Quizzes'}</span>
                           <span>%{quizPercentage}</span>
                         </div>
                       </div>
@@ -1469,11 +1572,11 @@ function HomePage({
                       <div className="flex justify-between items-center">
                         <span className="flex items-center gap-1.5 font-black text-xs text-current">
                           <Layers className="w-4 h-4 text-emerald-500" />
-                          Bilgi Kartı
+                          {lang === 'tr' ? 'Bilgi Kartı' : 'Flashcards'}
                         </span>
                         <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-black shrink-0">
                           <Flame className="w-3 h-3 fill-emerald-500" />
-                          <span>{stats.cardStreak || 0} Gün</span>
+                          <span>{stats.cardStreak || 0} {lang === 'tr' ? 'Gün' : 'Days'}</span>
                         </div>
                       </div>
                       <div className="flex flex-col gap-1.5">
@@ -1481,7 +1584,7 @@ function HomePage({
                           <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${cardPercentage}%` }} />
                         </div>
                         <div className={`flex justify-between text-[10px] font-bold ${mutedClass}`}>
-                          <span>{todayCardsCount} / {userGoals.dailyCards.toLocaleString()} Kart</span>
+                          <span>{todayCardsCount} / {userGoals.dailyCards.toLocaleString()} {lang === 'tr' ? 'Kart' : 'Cards'}</span>
                           <span>%{cardPercentage}</span>
                         </div>
                       </div>
@@ -1498,20 +1601,20 @@ function HomePage({
       {/* 3. Core Metrics Grid Row (Old homepage metrics + Spaced repetition overview) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-          <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>Toplam Okunan</span>
-          <span className={`text-lg font-black mt-1 ${titleClass}`}>{totalWords.toLocaleString()} kelime</span>
+          <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'Toplam Okunan' : 'Total Words Read'}</span>
+          <span className={`text-lg font-black mt-1 ${titleClass}`}>{totalWords.toLocaleString()} {lang === 'tr' ? 'kelime' : 'words'}</span>
         </div>
         <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-          <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>Okuma Süresi</span>
-          <span className={`text-lg font-black mt-1 ${titleClass}`}>{totalMinutes} dakika</span>
+          <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'Okuma Süresi' : 'Reading Time'}</span>
+          <span className={`text-lg font-black mt-1 ${titleClass}`}>{totalMinutes} {lang === 'tr' ? 'dakika' : 'minutes'}</span>
         </div>
         <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-          <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>Okuma Hızı</span>
+          <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'Okuma Hızı' : 'Reading Speed'}</span>
           <span className={`text-lg font-black mt-1 ${titleClass}`}>{maxWpm} WPM</span>
         </div>
         <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-          <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>Kart Tekrarı</span>
-          <span className={`text-lg font-black mt-1 ${titleClass}`}>{totalReviews} tekrar</span>
+          <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'Kart Tekrarı' : 'Card Reviews'}</span>
+          <span className={`text-lg font-black mt-1 ${titleClass}`}>{totalReviews} {lang === 'tr' ? 'tekrar' : 'reviews'}</span>
         </div>
       </div>
 
@@ -1523,8 +1626,8 @@ function HomePage({
           {/* Genel Etkileşim Nokta Grafiği (ScatterChart) */}
           <div className={`rounded-3xl border p-5 ${surfaceClass} flex flex-col gap-4`}>
             <div className="flex justify-between items-center text-[10px] font-bold">
-              <span className={`uppercase tracking-wider ${titleClass}`}>GENEL ETKİLEŞİM VE AKTİVİTE</span>
-              <span className={mutedClass}>Son 7 Gün</span>
+              <span className={`uppercase tracking-wider ${titleClass}`}>{lang === 'tr' ? 'GENEL ETKİLEŞİM VE AKTİVİTE' : 'GENERAL INTERACTION & ACTIVITY'}</span>
+              <span className={mutedClass}>{lang === 'tr' ? 'Son 7 Gün' : 'Last 7 Days'}</span>
             </div>
 
             <div className="h-[200px]">
@@ -1534,11 +1637,11 @@ function HomePage({
                   <XAxis dataKey="day" type="category" allowDuplicatedCategory={false} tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis dataKey="count" type="number" tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ background: isLightTheme ? '#ffffff' : '#09090b', border: isLightTheme ? '1px solid #e7e5e4' : '1px solid #27272a', borderRadius: 8 }} />
-                  <Scatter name="Okuma (Kelime x150)" data={okumaPoints} fill="#4f46e5" />
-                  <Scatter name="Sınavlar" data={quizPoints} fill="#ec4899" />
-                  <Scatter name="Kart Çalışması" data={cardPoints} fill="#10b981" />
-                  <Scatter name="Yapay Zeka" data={aiPoints} fill="#8b5cf6" />
-                  <Scatter name="Tıklamalar" data={clickPoints} fill="#f59e0b" />
+                  <Scatter name={lang === 'tr' ? 'Okuma (Kelime x150)' : 'Reading (Words x150)'} data={okumaPoints} fill="#4f46e5" />
+                  <Scatter name={lang === 'tr' ? 'Sınavlar' : 'Quizzes'} data={quizPoints} fill="#ec4899" />
+                  <Scatter name={lang === 'tr' ? 'Kart Çalışması' : 'Card Practice'} data={cardPoints} fill="#10b981" />
+                  <Scatter name={lang === 'tr' ? 'Yapay Zeka' : 'Artificial Intelligence'} data={aiPoints} fill="#8b5cf6" />
+                  <Scatter name={lang === 'tr' ? 'Tıklamalar' : 'Clicks'} data={clickPoints} fill="#f59e0b" />
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
@@ -1547,30 +1650,30 @@ function HomePage({
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center items-center border-t border-stone-100 dark:border-zinc-900/60 pt-3 text-[9px] font-black uppercase tracking-wider">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#4f46e5]" />
-                <span className={mutedClass}>Okuma</span>
+                <span className={mutedClass}>{lang === 'tr' ? 'Okuma' : 'Reading'}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#ec4899]" />
-                <span className={mutedClass}>Sınavlar</span>
+                <span className={mutedClass}>{lang === 'tr' ? 'Sınavlar' : 'Quizzes'}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#10b981]" />
-                <span className={mutedClass}>Kart Çalışması</span>
+                <span className={mutedClass}>{lang === 'tr' ? 'Kart Çalışması' : 'Card Practice'}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#8b5cf6]" />
-                <span className={mutedClass}>Yapay Zeka</span>
+                <span className={mutedClass}>{lang === 'tr' ? 'Yapay Zeka' : 'Artificial Intelligence'}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#f59e0b]" />
-                <span className={mutedClass}>Tıklamalar</span>
+                <span className={mutedClass}>{lang === 'tr' ? 'Tıklamalar' : 'Clicks'}</span>
               </div>
             </div>
           </div>
 
           {/* Quick Actions Grid */}
           <div className="flex flex-col gap-4">
-            <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>HIZLI AKSİYONLAR</span>
+            <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'HIZLI AKSİYONLAR' : 'QUICK ACTIONS'}</span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
               <button
@@ -1581,8 +1684,8 @@ function HomePage({
                   <Play className="w-4 h-4 fill-indigo-500" />
                 </div>
                 <div>
-                  <h4 className={`text-xs font-black group-hover:text-indigo-500 transition-colors ${titleClass}`}>Hızlı Okuma Başlat</h4>
-                  <p className={`text-[10px] mt-0.5 ${mutedClass}`}>RSVP motorunu hemen çalıştırın</p>
+                  <h4 className={`text-xs font-black group-hover:text-indigo-500 transition-colors ${titleClass}`}>{lang === 'tr' ? 'Hızlı Okuma Başlat' : 'Start Speed Reading'}</h4>
+                  <p className={`text-[10px] mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'RSVP motorunu hemen çalıştırın' : 'Launch the RSVP engine immediately'}</p>
                 </div>
               </button>
 
@@ -1594,8 +1697,8 @@ function HomePage({
                   <Brain className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className={`text-xs font-black group-hover:text-amber-500 transition-colors ${titleClass}`}>Hafıza Alıştırması</h4>
-                  <p className={`text-[10px] mt-0.5 ${mutedClass}`}>Kavrama sınavları ve Feynman</p>
+                  <h4 className={`text-xs font-black group-hover:text-amber-500 transition-colors ${titleClass}`}>{lang === 'tr' ? 'Hafıza Alıştırması' : 'Memory Practice'}</h4>
+                  <p className={`text-[10px] mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'Kavrama sınavları ve Feynman' : 'Comprehension quizzes and Feynman'}</p>
                 </div>
               </button>
 
@@ -1607,8 +1710,8 @@ function HomePage({
                   <MessageSquareText className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className={`text-xs font-black group-hover:text-teal-500 transition-colors ${titleClass}`}>Notları & Özetleri Aç</h4>
-                  <p className={`text-[10px] mt-0.5 ${mutedClass}`}>Zihin haritaları ve not defteri</p>
+                  <h4 className={`text-xs font-black group-hover:text-teal-500 transition-colors ${titleClass}`}>{lang === 'tr' ? 'Notları & Özetleri Aç' : 'Open Notes & Summaries'}</h4>
+                  <p className={`text-[10px] mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'Zihin haritaları ve not defteri' : 'Mind maps and notebooks'}</p>
                 </div>
               </button>
 
@@ -1620,8 +1723,8 @@ function HomePage({
                   <Plus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className={`text-xs font-black group-hover:text-fuchsia-500 transition-colors ${titleClass}`}>Yeni Kitap Yükle</h4>
-                  <p className={`text-[10px] mt-0.5 ${mutedClass}`}>TXT, PDF, EPUB ve DOCX</p>
+                  <h4 className={`text-xs font-black group-hover:text-fuchsia-500 transition-colors ${titleClass}`}>{lang === 'tr' ? 'Yeni Kitap Yükle' : 'Upload New Book'}</h4>
+                  <p className={`text-[10px] mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'TXT, PDF, EPUB ve DOCX' : 'TXT, PDF, EPUB, and DOCX'}</p>
                 </div>
               </button>
 
@@ -1634,20 +1737,20 @@ function HomePage({
           
           {/* Spaced Repetition divider card */}
           <div className={`p-5 rounded-3xl border ${surfaceClass} flex flex-col gap-4`}>
-            <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>HAFIZA & SPACED REPETITION</span>
+            <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'HAFIZA & SPACED REPETITION' : 'MEMORY & SPACED REPETITION'}</span>
             
             <div className="grid grid-cols-3 divide-x divide-stone-200 dark:divide-zinc-800 text-center py-1">
               <div>
                 <h4 className="text-xl font-black text-amber-500">{books.length}</h4>
-                <p className={`text-[10px] font-bold mt-1 ${mutedClass}`}>Aktif Okuma</p>
+                <p className={`text-[10px] font-bold mt-1 ${mutedClass}`}>{lang === 'tr' ? 'Aktif Okuma' : 'Active Readings'}</p>
               </div>
               <div>
                 <h4 className="text-xl font-black text-indigo-500">{quizHistory.length}</h4>
-                <p className={`text-[10px] font-bold mt-1 ${mutedClass}`}>Sınav Hazır</p>
+                <p className={`text-[10px] font-bold mt-1 ${mutedClass}`}>{lang === 'tr' ? 'Sınav Hazır' : 'Quizzes Ready'}</p>
               </div>
               <div>
                 <h4 className="text-xl font-black text-emerald-500">%100</h4>
-                <p className={`text-[10px] font-bold mt-1 ${mutedClass}`}>Hafıza Skoru</p>
+                <p className={`text-[10px] font-bold mt-1 ${mutedClass}`}>{lang === 'tr' ? 'Hafıza Skoru' : 'Memory Score'}</p>
               </div>
             </div>
           </div>
@@ -1655,18 +1758,18 @@ function HomePage({
           {/* Recent Books List (Old homepage) */}
           <div className={`rounded-3xl border p-5 ${surfaceClass} flex flex-col gap-3`}>
             <div className="flex items-center justify-between">
-              <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>SON OKUNAN DOKÜMANLAR</span>
+              <span className={`text-[9px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'SON OKUNAN DOKÜMANLAR' : 'RECENTLY READ DOCUMENTS'}</span>
               <button
                 onClick={() => onNavigateToTab('workspace')}
                 className="text-[10px] font-bold text-indigo-500 hover:underline"
               >
-                Tümünü Gör
+                {lang === 'tr' ? 'Tümünü Gör' : 'View All'}
               </button>
             </div>
 
             <div className="flex flex-col divide-y divide-stone-100 dark:divide-zinc-900/60 mt-1">
               {recentBooks.length === 0 ? (
-                <p className="text-xs opacity-60 text-center py-6">Henüz belge eklenmemiş.</p>
+                <p className="text-xs opacity-60 text-center py-6">{lang === 'tr' ? 'Henüz belge eklenmemiş.' : 'No documents added yet.'}</p>
               ) : (
                 recentBooks.map((book: any) => (
                   <button
@@ -1676,9 +1779,9 @@ function HomePage({
                   >
                     <div className="min-w-0 flex-1 pr-2">
                       <h4 className={`text-xs font-black truncate ${titleClass}`}>{book.title}</h4>
-                      <p className={`text-[10px] mt-0.5 ${mutedClass}`}>% {book.progress || 0} okundu</p>
+                      <p className={`text-[10px] mt-0.5 ${mutedClass}`}>{lang === 'tr' ? `% ${book.progress || 0} okundu` : `% ${book.progress || 0} read`}</p>
                     </div>
-                    <span className="text-[10px] text-indigo-500 font-extrabold shrink-0">Aç</span>
+                    <span className="text-[10px] text-indigo-500 font-extrabold shrink-0">{lang === 'tr' ? 'Aç' : 'Open'}</span>
                   </button>
                 ))
               )}
@@ -1704,6 +1807,13 @@ function ProgressPage({
   setQuizReport,
   cardReport,
   setCardReport,
+  readingReportHistory = [],
+  setReadingReportHistory,
+  quizReportHistory = [],
+  setQuizReportHistory,
+  cardReportHistory = [],
+  setCardReportHistory,
+  onDeleteHistoryItem,
   reportLoading,
   setReportLoading,
   postAi,
@@ -1713,6 +1823,7 @@ function ProgressPage({
   mutedClass,
   isLightTheme
 }: any) {
+  const { t, lang } = useTranslation();
   // Subtab: 'reading' | 'quiz' | 'cards'
   const [progSubTab, setProgSubTab] = useState<'reading' | 'quiz' | 'cards'>('reading');
   const [progressRange, setProgressRange] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('weekly');
@@ -1720,6 +1831,14 @@ function ProgressPage({
   const [cardProgressRange, setCardProgressRange] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('weekly');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+
+  const [readingReportTab, setReadingReportTab] = useState<'active' | 'history'>('active');
+  const [quizReportTab, setQuizReportTab] = useState<'active' | 'history'>('active');
+  const [cardReportTab, setCardReportTab] = useState<'active' | 'history'>('active');
+
+  const [selectedPastReadingReport, setSelectedPastReadingReport] = useState<any>(null);
+  const [selectedPastQuizReport, setSelectedPastQuizReport] = useState<any>(null);
+  const [selectedPastCardReport, setSelectedPastCardReport] = useState<any>(null);
 
   const computedChartData = useMemo(() => {
     type HistoryItem = { date: string; wordCount: number; durationSeconds: number };
@@ -1738,7 +1857,7 @@ function ProgressPage({
         const key = date.toISOString().split('T')[0];
         const item = historyMap.get(key);
         return {
-          date: date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }),
+          date: date.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: '2-digit', month: 'short' }),
           words: item?.wordCount || 0,
           minutes: Math.round((item?.durationSeconds || 0) / 60)
         };
@@ -1767,7 +1886,7 @@ function ProgressPage({
         const key = `${year}-W${week}`;
         const val = weeksMap.get(key) || { words: 0, seconds: 0 };
         return {
-          date: `${index + 1}. Hafta`,
+          date: lang === 'tr' ? `${index + 1}. Hafta` : `Week ${index + 1}`,
           words: val.words,
           minutes: Math.round(val.seconds / 60)
         };
@@ -1792,7 +1911,7 @@ function ProgressPage({
         const key = `${date.getFullYear()}-${date.getMonth()}`;
         const val = monthsMap.get(key) || { words: 0, seconds: 0 };
         return {
-          date: date.toLocaleDateString('tr-TR', { month: 'long' }),
+          date: date.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { month: 'long' }),
           words: val.words,
           minutes: Math.round(val.seconds / 60)
         };
@@ -1836,7 +1955,7 @@ function ProgressPage({
         const key = date.toISOString().split('T')[0];
         const item = historyMap.get(key);
         return {
-          date: date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }),
+          date: date.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: '2-digit', month: 'short' }),
           words: item?.wordCount || 0,
           minutes: Math.round((item?.durationSeconds || 0) / 60)
         };
@@ -1844,7 +1963,7 @@ function ProgressPage({
     }
 
     return [];
-  }, [stats.history, progressRange, customStartDate, customEndDate]);
+  }, [stats.history, progressRange, customStartDate, customEndDate, lang]);
 
   const filteredQuizHistory = useMemo(() => {
     if (quizProgressRange === 'custom' && (!customStartDate || !customEndDate)) return quizHistory;
@@ -1986,11 +2105,11 @@ function ProgressPage({
       else high++;
     });
     return [
-      { range: 'Geliştirilmeli (0-59)', count: low },
-      { range: 'Başarılı (60-79)', count: mid },
-      { range: 'Mükemmel (80-100)', count: high }
+      { range: lang === 'tr' ? 'Geliştirilmeli (0-59)' : 'Needs Improvement (0-59)', count: low },
+      { range: lang === 'tr' ? 'Başarılı (60-79)' : 'Successful (60-79)', count: mid },
+      { range: lang === 'tr' ? 'Mükemmel (80-100)' : 'Excellent (80-100)', count: high }
     ];
-  }, [filteredQuizHistory]);
+  }, [filteredQuizHistory, lang]);
 
   const cardReviewDistribution = useMemo(() => {
     let unreviewed = 0;
@@ -2005,62 +2124,159 @@ function ProgressPage({
       else high++;
     });
     return [
-      { status: 'Çalışılmadı (0)', count: unreviewed },
-      { status: 'Tanışma (1-3)', count: low },
-      { status: 'Pekiştirme (4-7)', count: mid },
-      { status: 'Uzman (8+)', count: high }
+      { status: lang === 'tr' ? 'Çalışılmadı (0)' : 'Unreviewed (0)', count: unreviewed },
+      { status: lang === 'tr' ? 'Tanışma (1-3)' : 'Learning (1-3)', count: low },
+      { status: lang === 'tr' ? 'Pekiştirme (4-7)' : 'Reviewing (4-7)', count: mid },
+      { status: lang === 'tr' ? 'Uzman (8+)' : 'Mastered (8+)', count: high }
     ];
-  }, [filteredFlashcards]);
+  }, [filteredFlashcards, lang]);
 
   const handleGenerateReport = async (type: 'reading' | 'quiz' | 'cards') => {
     setReportLoading(type);
     try {
       let prompt = '';
       if (type === 'reading') {
-        prompt = `Aşağıdaki hızlı okuma verilerimi analiz et ve Türkçe olarak kısa, öz, geliştirici bir gelişim raporu hazırla:\nToplam okunan kelime: ${stats.totalWordsRead}\nOkuma süresi: ${totalMinutes} dakika\nEn yüksek okuma hızı: ${stats.maxSpeedWpm} WPM\nGünlük seri: ${stats.dailyStreak} gün.\nRaporda Markdown kullan.`;
+        prompt = lang === 'tr'
+          ? `Aşağıdaki hızlı okuma verilerimi analiz et ve Türkçe olarak kısa, öz, geliştirici bir gelişim raporu hazırla:\nToplam okunan kelime: ${stats.totalWordsRead}\nOkuma süresi: ${totalMinutes} dakika\nEn yüksek okuma hızı: ${stats.maxSpeedWpm} WPM\nGünlük seri: ${stats.dailyStreak} gün.\nRaporda Markdown kullan.`
+          : `Analyze the following speed reading data and prepare a short, concise, and constructive progress report in English:\nTotal words read: ${stats.totalWordsRead}\nReading duration: ${totalMinutes} minutes\nMax reading speed: ${stats.maxSpeedWpm} WPM\nDaily streak: ${stats.dailyStreak} days.\nUse Markdown for formatting.`;
       } else if (type === 'quiz') {
-        prompt = `Aşağıdaki yapay zeka sınav sonuç geçmişimi analiz et ve Türkçe olarak hangi konularda daha iyi olduğumu, neleri geliştirmem gerektiğini özetleyen kısa bir öğrenim gelişim raporu hazırla:\nToplam çözülen sınav sayısı: ${quizHistory.length}\nOrtalama sınav başarısı: %${avgScore}\nSon sınav skorları: ${JSON.stringify(quizHistory.slice(0, 3).map(h => h.score))}.\nRaporda Markdown kullan.`;
+        prompt = lang === 'tr'
+          ? `Aşağıdaki yapay zeka sınav sonuç geçmişimi analiz et ve Türkçe olarak hangi konularda daha iyi olduğumu, neleri geliştirmem gerektiğini özetleyen kısa bir öğrenim gelişim raporu hazırla:\nToplam çözülen sınav sayısı: ${quizHistory.length}\nOrtalama sınav başarısı: %${avgScore}\nSon sınav skorları: ${JSON.stringify(quizHistory.slice(0, 3).map(h => h.score))}.\nRaporda Markdown kullan.`
+          : `Analyze the following AI quiz history and prepare a short learning progress report in English summarizing what topics I excel in and what I need to improve:\nTotal quizzes taken: ${quizHistory.length}\nAverage score: %${avgScore}\nRecent quiz scores: ${JSON.stringify(quizHistory.slice(0, 3).map(h => h.score))}.\nUse Markdown for formatting.`;
       } else if (type === 'cards') {
-        prompt = `Aşağıdaki akıllı bilgi kartı hafıza laboratuvarı verilerimi analiz et ve Türkçe olarak hatırlama gücümü artıracak pratik taktikler içeren kısa bir hafıza raporu hazırla:\nToplam bilgi kartı sayısı: ${flashcards.length}\nKart tekrarı sayısı: ${totalReviews}\nEn çok çalışılan kartların tekrar adetleri: ${JSON.stringify(flashcards.slice(0, 3).map(c => c.reviewsCount))}.\nRaporda Markdown kullan.`;
+        prompt = lang === 'tr'
+          ? `Aşağıdaki akıllı bilgi kartı hafıza laboratuvarı verilerimi analiz et ve Türkçe olarak hatırlama gücümü artıracak pratik taktikler içeren kısa bir hafıza raporu hazırla:\nToplam bilgi kartı sayısı: ${flashcards.length}\nKart tekrarı sayısı: ${totalReviews}\nEn çok çalışılan kartların tekrar adetleri: ${JSON.stringify(flashcards.slice(0, 3).map(c => c.reviewsCount))}.\nRaporda Markdown kullan.`
+          : `Analyze the following smart flashcard memory lab data and prepare a short memory report in English containing practical tactics to increase my recall power:\nTotal flashcards: ${flashcards.length}\nTotal card reviews: ${totalReviews}\nReview counts of most studied cards: ${JSON.stringify(flashcards.slice(0, 3).map(c => c.reviewsCount))}.\nUse Markdown for formatting.`;
       }
 
       const res = await postAi('/api/ai/insights', { text: prompt, title: 'Gelişim Analizi Raporu' });
-      if (type === 'reading') setReadingReport(res.insights || res.content || 'Okuma gelişim raporu hazırlandı.');
-      if (type === 'quiz') setQuizReport(res.insights || res.content || 'Quiz başarı gelişim raporu hazırlandı.');
-      if (type === 'cards') setCardReport(res.insights || res.content || 'Hafıza ve bilgi kartı gelişim raporu hazırlandı.');
+      
+      let reportText = '';
+      if (res.keyInsights?.length || res.actionableIdea || res.mentalModel) {
+        const insightsHeader = lang === 'tr' ? '### 💡 Önemli İçgörüler' : '### 💡 Key Insights';
+        const actionLabel = lang === 'tr' ? '**Aksiyon:**' : '**Action:**';
+        const modelLabel = lang === 'tr' ? '**Zihinsel Model:**' : '**Mental Model:**';
+        
+        const insightsList = res.keyInsights?.map((item: string) => `- ${item}`).join('\n') || '';
+        reportText = `${insightsHeader}\n${insightsList}\n\n${actionLabel} ${res.actionableIdea || ''}\n\n${modelLabel} ${res.mentalModel || ''}`;
+      } else {
+        reportText = res.insights || res.content || (lang === 'tr' ? 'Okuma gelişim raporu hazırlandı.' : 'Reading progress report prepared.');
+      }
+
+      const newReportItem = {
+        id: Date.now().toString(),
+        date: new Date().toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US'),
+        content: reportText
+      };
+
+      if (type === 'reading') {
+        setReadingReport(reportText);
+        localStorage.setItem('velox_reading_report_active', reportText);
+        const updated = [newReportItem, ...readingReportHistory];
+        setReadingReportHistory(updated);
+        localStorage.setItem('velox_reading_reports_history', JSON.stringify(updated));
+      }
+      if (type === 'quiz') {
+        setQuizReport(reportText);
+        localStorage.setItem('velox_quiz_report_active', reportText);
+        const updated = [newReportItem, ...quizReportHistory];
+        setQuizReportHistory(updated);
+        localStorage.setItem('velox_quiz_reports_history', JSON.stringify(updated));
+      }
+      if (type === 'cards') {
+        setCardReport(reportText);
+        localStorage.setItem('velox_card_report_active', reportText);
+        const updated = [newReportItem, ...cardReportHistory];
+        setCardReportHistory(updated);
+        localStorage.setItem('velox_card_reports_history', JSON.stringify(updated));
+      }
     } catch (e) {
       // Offline fallback
       let reportFallback = '';
       if (type === 'reading') {
-        reportFallback = `### 📈 Okuma İlerleme Raporu
+        reportFallback = lang === 'tr'
+          ? `### 📈 Okuma İlerleme Raporu
 
 **Genel Değerlendirme:**
 Toplamda ${stats.totalWordsRead.toLocaleString()} kelime okuyarak harika bir tempolu okuma disiplini edindiniz. Maksimum okuma hızınız olan ${stats.maxSpeedWpm} WPM, gözünüzün ORP (Optimal Tanıma Noktası) yeteneğini oldukça iyi geliştirdiğini gösteriyor.
 
 **Gelişim Önerileri:**
 - Subvocalization (iç seslendirme) alışkanlığını azaltmak için okuma hızınızı kademeli olarak 400 WPM üzerine sabitlemeye çalışın.
-- Günlük ${stats.dailyStreak} günlük istikrarınızı koruyun.`;
+- Günlük ${stats.dailyStreak} günlük istikrarınızı koruyun.`
+          : `### 📈 Reading Progress Report
+
+**General Assessment:**
+You have built a great speed reading discipline by reading a total of ${stats.totalWordsRead.toLocaleString()} words. Your maximum reading speed of ${stats.maxSpeedWpm} WPM shows that you have improved your eye's OVP (Optimal Visual Point) ability quite well.
+
+**Development Suggestions:**
+- Try to gradually stabilize your reading speed above 400 WPM to reduce the habit of subvocalization.
+- Maintain your daily consistency of ${stats.dailyStreak} days.`;
         setReadingReport(reportFallback);
+        localStorage.setItem('velox_reading_report_active', reportFallback);
+        const newReportItem = {
+          id: Date.now().toString(),
+          date: new Date().toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US'),
+          content: reportFallback
+        };
+        const updated = [newReportItem, ...readingReportHistory];
+        setReadingReportHistory(updated);
+        localStorage.setItem('velox_reading_reports_history', JSON.stringify(updated));
       } else if (type === 'quiz') {
-        reportFallback = `### 🏆 Sınav Kavrama Analizi
+        reportFallback = lang === 'tr'
+          ? `### 🏆 Sınav Kavrama Analizi
 
 **Genel Değerlendirme:**
 Bugüne kadar çözdüğünüz ${quizHistory.length} sınav genelinde ortalama **%${avgScore}** başarı elde ederek yüksek bir okuduğunu anlama oranına ulaştınız.
 
 **Gelişim Önerileri:**
 - Hatalı yaptığınız soru başlıklarındaki metin bölümlerini Çalışma Alanında tekrar ziyaret edin.
-- Zorluk seviyesini kademeli olarak 'Zor' seçeneğe taşıyarak yorum sorularında aktif akıl yürütme pratiği yapın.`;
+- Zorluk seviyesini kademeli olarak 'Zor' seçeneğe taşıyarak yorum sorularında aktif akıl yürütme pratiği yapın.`
+          : `### 🏆 Quiz Comprehension Analysis
+
+**General Assessment:**
+You have achieved a high reading comprehension rate with an average success of **%${avgScore}** across all ${quizHistory.length} quizzes taken so far.
+
+**Development Suggestions:**
+- Revisit the text sections of the question topics you got wrong in the Workspace.
+- Gradually move the difficulty level to 'Hard' to practice active reasoning in interpretation questions.`;
         setQuizReport(reportFallback);
+        localStorage.setItem('velox_quiz_report_active', reportFallback);
+        const newReportItem = {
+          id: Date.now().toString(),
+          date: new Date().toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US'),
+          content: reportFallback
+        };
+        const updated = [newReportItem, ...quizReportHistory];
+        setQuizReportHistory(updated);
+        localStorage.setItem('velox_quiz_reports_history', JSON.stringify(updated));
       } else if (type === 'cards') {
-        reportFallback = `### 💡 Hafıza Laboratuvarı Gelişim Raporu
+        reportFallback = lang === 'tr'
+          ? `### 💡 Hafıza Laboratuvarı Gelişim Raporu
 
 **Genel Değerlendirme:**
 Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} tekrar gerçekleştirerek bilgileri zihninizde pekiştirdiniz.
 
 **Gelişim Önerileri:**
 - "Sık Gösterilecekler" listesindeki kart sayısını azaltmak için her sabah 5 dakikalık bir odak kart seansı uygulayın.
-- Feynman Tekniğini kullanarak en karmaşık kartları kendi kelimelerinizle açıklayın.`;
+- Feynman Tekniğini kullanarak en karmaşık kartları kendi kelimelerinizle açıklayın.`
+          : `### 💡 Memory Lab Progress Report
+
+**General Assessment:**
+You have a total of ${flashcards.length} cards and have consolidated the information in your mind by performing ${totalReviews} repetitions so far.
+
+**Development Suggestions:**
+- Apply a 5-minute focused card session every morning to reduce the number of cards in the "Frequently Shown" list.
+- Explain the most complex cards in your own words using the Feynman Technique.`;
         setCardReport(reportFallback);
+        localStorage.setItem('velox_card_report_active', reportFallback);
+        const newReportItem = {
+          id: Date.now().toString(),
+          date: new Date().toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US'),
+          content: reportFallback
+        };
+        const updated = [newReportItem, ...cardReportHistory];
+        setCardReportHistory(updated);
+        localStorage.setItem('velox_card_reports_history', JSON.stringify(updated));
       }
     } finally {
       setReportLoading(null);
@@ -2070,8 +2286,8 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
   return (
     <section className="flex flex-col gap-6">
       <PageHeader
-        title="İlerleme ve Gelişim"
-        description="Okuma, quiz başarısı ve bilgi kartı istatistikleri ve yapay zeka gelişim analizleriniz."
+        title={t('pr_title')}
+        description={t('pr_subtitle')}
         titleClass={titleClass}
         mutedClass={mutedClass}
       />
@@ -2079,9 +2295,9 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
       {/* Sub-tab selection menu */}
       <div className="flex flex-wrap gap-2 border-b border-stone-200 dark:border-zinc-900 pb-3">
         {[
-          { id: 'reading', label: 'Okuma Analizi', icon: BookOpen },
-          { id: 'quiz', label: 'Quiz Analizi', icon: Brain },
-          { id: 'cards', label: 'Kart Analizi', icon: Bookmark }
+          { id: 'reading', label: t('pr_tab_reading'), icon: BookOpen },
+          { id: 'quiz', label: t('pr_tab_quiz'), icon: Brain },
+          { id: 'cards', label: t('pr_tab_cards'), icon: Bookmark }
         ].map((tab) => {
           const isActive = progSubTab === tab.id;
           const Icon = tab.icon;
@@ -2110,15 +2326,15 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>OKUNAN KELİME</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{t('pr_total_words_read')}</span>
                 <span className="text-xl font-black mt-1 text-current">{stats.totalWordsRead.toLocaleString()}</span>
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>OKUMA SÜRESİ</span>
-                <span className="text-xl font-black mt-1 text-current">{totalMinutes} dakika</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{lang === 'tr' ? 'OKUMA SÜRESİ' : 'READING DURATION'}</span>
+                <span className="text-xl font-black mt-1 text-current">{totalMinutes} {t('pr_mins_unit')}</span>
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>MAKS HIZ (WPM)</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{lang === 'tr' ? 'MAKS HIZ (WPM)' : 'MAX SPEED (WPM)'}</span>
                 <span className="text-xl font-black mt-1 text-current">{stats.maxSpeedWpm}</span>
               </div>
             </div>
@@ -2126,16 +2342,16 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
             {/* Reading Chart */}
             <div className={`rounded-3xl border p-5 ${surfaceClass}`}>
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <h3 className={`text-xs font-black ${titleClass}`}>Okuma Trend Grafiği</h3>
+                <h3 className={`text-xs font-black ${titleClass}`}>{t('pr_chart_reading_title')}</h3>
                 
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
                     {[
-                      { id: 'daily', label: 'Günlük' },
-                      { id: 'weekly', label: 'Haftalık' },
-                      { id: 'monthly', label: 'Aylık' },
-                      { id: 'yearly', label: 'Yıllık' },
-                      { id: 'custom', label: 'Özel' }
+                      { id: 'daily', label: t('pr_range_daily') },
+                      { id: 'weekly', label: t('pr_range_weekly') },
+                      { id: 'monthly', label: t('pr_range_monthly') },
+                      { id: 'yearly', label: t('pr_range_yearly') },
+                      { id: 'custom', label: t('pr_range_custom') }
                     ].map(p => (
                       <button
                         key={p.id}
@@ -2154,12 +2370,12 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
 
                   <div className="relative group">
                     <button type="button" className="h-8 px-3 rounded-xl border border-stone-200 dark:border-zinc-850 bg-white dark:bg-zinc-950 text-[10px] font-black flex items-center gap-1.5 hover:bg-stone-50 dark:hover:bg-zinc-900">
-                      <Download className="w-3.5 h-3.5" /> Verileri Dışa Aktar
+                      <Download className="w-3.5 h-3.5" /> {t('pr_export_data')}
                     </button>
                     <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-20 min-w-[120px]">
-                      <button type="button" onClick={() => handleExportData('reading', 'csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">CSV (Excel)</button>
-                      <button type="button" onClick={() => handleExportData('reading', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">JSON Verisi</button>
-                      <button type="button" onClick={() => handleExportData('reading', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">TXT Metni</button>
+                      <button type="button" onClick={() => handleExportData('reading', 'csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">{t('pr_export_csv')}</button>
+                      <button type="button" onClick={() => handleExportData('reading', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">{t('pr_export_json')}</button>
+                      <button type="button" onClick={() => handleExportData('reading', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">{t('pr_export_txt')}</button>
                     </div>
                   </div>
                 </div>
@@ -2168,7 +2384,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
               {progressRange === 'custom' && (
                 <div className="flex flex-wrap items-center gap-3 mb-4 bg-stone-50 dark:bg-zinc-900/20 p-3 rounded-2xl border border-stone-150 dark:border-zinc-900">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[9px] font-black text-stone-500">BAŞLANGIÇ</span>
+                    <span className="text-[9px] font-black text-stone-500">{t('pr_custom_start')}</span>
                     <input
                       type="date"
                       value={customStartDate}
@@ -2178,7 +2394,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[9px] font-black text-stone-500">BİTİŞ</span>
+                    <span className="text-[9px] font-black text-stone-500">{t('pr_custom_end')}</span>
                     <input
                       type="date"
                       value={customEndDate}
@@ -2207,25 +2423,93 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
           {/* AI Report Column */}
           <div className="flex flex-col gap-4">
             <div className={`p-5 rounded-3xl border ${surfaceClass} flex flex-col gap-4 h-full`}>
-              <div className="flex justify-between items-center border-b border-stone-200 dark:border-zinc-800/60 pb-3">
-                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>AI OKUMA RAPORU</span>
-                <button
-                  onClick={() => handleGenerateReport('reading')}
-                  disabled={reportLoading === 'reading'}
-                  className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black transition-all flex items-center gap-1 shadow-lg shadow-indigo-600/20"
-                >
-                  <Sparkles className="w-3 h-3" /> {reportLoading === 'reading' ? 'Analiz Ediliyor...' : 'Rapor Üret'}
-                </button>
+              <div className="flex justify-between items-center border-b border-stone-200 dark:border-zinc-800/60 pb-3 flex-wrap gap-2">
+                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{t('pr_ai_report_title')}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => { setReadingReportTab('active'); setSelectedPastReadingReport(null); }}
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black transition-all ${
+                        readingReportTab === 'active' ? 'bg-indigo-600 text-white shadow' : `${mutedClass} hover:text-indigo-500`
+                      }`}
+                    >
+                      {lang === 'tr' ? 'Son Rapor' : 'Latest'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReadingReportTab('history')}
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black transition-all ${
+                        readingReportTab === 'history' ? 'bg-indigo-600 text-white shadow' : `${mutedClass} hover:text-indigo-500`
+                      }`}
+                    >
+                      {lang === 'tr' ? `Geçmiş (${readingReportHistory.length})` : `History (${readingReportHistory.length})`}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleGenerateReport('reading')}
+                    disabled={reportLoading === 'reading'}
+                    className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black transition-all flex items-center gap-1 shadow-lg shadow-indigo-600/20"
+                  >
+                    <Sparkles className="w-3 h-3" /> {reportLoading === 'reading' ? t('pr_ai_report_loading') : t('pr_ai_report_btn')}
+                  </button>
+                </div>
               </div>
 
-              {readingReport ? (
-                <div className="text-xs leading-relaxed opacity-95 flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1 whitespace-pre-wrap">
-                  {readingReport}
-                </div>
+              {readingReportTab === 'active' ? (
+                readingReport ? (
+                  <div className="text-xs leading-relaxed opacity-95 flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1 whitespace-pre-wrap">
+                    {readingReport}
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 gap-3">
+                    <Sparkles className="w-8 h-8 text-indigo-500 opacity-60 animate-pulse" />
+                    <p className="text-xs opacity-60">{t('pr_ai_report_empty')}</p>
+                  </div>
+                )
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 gap-3">
-                  <Sparkles className="w-8 h-8 text-indigo-500 opacity-60 animate-pulse" />
-                  <p className="text-xs opacity-60">Okuma alışkanlıklarınızı analiz etmek ve kişisel gelişim raporunuzu üretmek için "Rapor Üret" butonuna basın.</p>
+                <div className="flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1">
+                  {selectedPastReadingReport ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-center bg-stone-100 dark:bg-zinc-900/50 p-2.5 rounded-xl border border-stone-200 dark:border-zinc-800">
+                        <span className="text-[10px] font-black text-indigo-500">{selectedPastReadingReport.date}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPastReadingReport(null)}
+                          className="text-[10px] font-black text-indigo-500 hover:underline"
+                        >
+                          {lang === 'tr' ? '← Geri' : '← Back'}
+                        </button>
+                      </div>
+                      <div className="text-xs leading-relaxed opacity-95 whitespace-pre-wrap">
+                        {selectedPastReadingReport.content}
+                      </div>
+                    </div>
+                  ) : readingReportHistory.length === 0 ? (
+                    <p className="text-xs opacity-60 text-center py-8">{lang === 'tr' ? 'Henüz geçmiş rapor kaydı yok.' : 'No past report history yet.'}</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {readingReportHistory.map((item: any) => (
+                        <div key={item.id} className="flex justify-between items-center p-3 rounded-2xl border border-stone-200 dark:border-zinc-800 hover:bg-stone-50 dark:hover:bg-zinc-900 transition-colors">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPastReadingReport(item)}
+                            className="text-left font-black text-xs text-indigo-500 hover:underline flex-1 truncate mr-2"
+                          >
+                            📅 {item.date}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteHistoryItem('reading', item.id)}
+                            className="text-red-500 hover:text-red-700 text-xs p-1"
+                            title={lang === 'tr' ? 'Sil' : 'Delete'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2239,32 +2523,32 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>ÇÖZÜLEN SINAV</span>
-                <span className="text-xl font-black mt-1 text-current">{filteredQuizHistory.length} sınav</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{lang === 'tr' ? 'ÇÖZÜLEN SINAV' : 'COMPLETED QUIZZES'}</span>
+                <span className="text-xl font-black mt-1 text-current">{filteredQuizHistory.length} {lang === 'tr' ? 'sınav' : 'quizzes'}</span>
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>ORTALAMA BAŞARI</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{lang === 'tr' ? 'ORTALAMA BAŞARI' : 'AVERAGE COMPREHENSION'}</span>
                 <span className="text-xl font-black mt-1 text-current">%{avgScore}</span>
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>BAŞARI SERİSİ</span>
-                <span className="text-xl font-black mt-1 text-current">{filteredQuizHistory.filter((h: any) => h.score >= 80).length} sınav (%80+)</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{lang === 'tr' ? 'BAŞARI SERİSİ' : 'SUCCESS STREAK'}</span>
+                <span className="text-xl font-black mt-1 text-current">{filteredQuizHistory.filter((h: any) => h.score >= 80).length} {lang === 'tr' ? 'sınav (%80+)' : 'quizzes (%80+)'}</span>
               </div>
             </div>
 
             {/* Quiz performance bar chart */}
             <div className={`rounded-3xl border p-5 ${surfaceClass}`}>
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <h3 className={`text-xs font-black ${titleClass}`}>Sınav Başarı Dağılımı</h3>
+                <h3 className={`text-xs font-black ${titleClass}`}>{lang === 'tr' ? 'Sınav Başarı Dağılımı' : 'Quiz Success Distribution'}</h3>
                 
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
                     {[
-                      { id: 'daily', label: 'Günlük' },
-                      { id: 'weekly', label: 'Haftalık' },
-                      { id: 'monthly', label: 'Aylık' },
-                      { id: 'yearly', label: 'Yıllık' },
-                      { id: 'custom', label: 'Özel' }
+                      { id: 'daily', label: lang === 'tr' ? 'Günlük' : 'Daily' },
+                      { id: 'weekly', label: lang === 'tr' ? 'Haftalık' : 'Weekly' },
+                      { id: 'monthly', label: lang === 'tr' ? 'Aylık' : 'Monthly' },
+                      { id: 'yearly', label: lang === 'tr' ? 'Yıllık' : 'Yearly' },
+                      { id: 'custom', label: lang === 'tr' ? 'Özel' : 'Custom' }
                     ].map(p => (
                       <button
                         key={p.id}
@@ -2283,12 +2567,12 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
 
                   <div className="relative group">
                     <button type="button" className="h-8 px-3 rounded-xl border border-stone-200 dark:border-zinc-850 bg-white dark:bg-zinc-950 text-[10px] font-black flex items-center gap-1.5 hover:bg-stone-50 dark:hover:bg-zinc-900">
-                      <Download className="w-3.5 h-3.5" /> Verileri Dışa Aktar
+                      <Download className="w-3.5 h-3.5" /> {lang === 'tr' ? 'Verileri Dışa Aktar' : 'Export Data'}
                     </button>
                     <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-20 min-w-[120px]">
                       <button type="button" onClick={() => handleExportData('quiz', 'csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">CSV (Excel)</button>
-                      <button type="button" onClick={() => handleExportData('quiz', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">JSON Verisi</button>
-                      <button type="button" onClick={() => handleExportData('quiz', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">TXT Metni</button>
+                      <button type="button" onClick={() => handleExportData('quiz', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">{lang === 'tr' ? 'JSON Verisi' : 'JSON Data'}</button>
+                      <button type="button" onClick={() => handleExportData('quiz', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">{lang === 'tr' ? 'TXT Metni' : 'TXT Text'}</button>
                     </div>
                   </div>
                 </div>
@@ -2297,7 +2581,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
               {quizProgressRange === 'custom' && (
                 <div className="flex flex-wrap items-center gap-3 mb-4 bg-stone-50 dark:bg-zinc-900/20 p-3 rounded-2xl border border-stone-150 dark:border-zinc-900">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[9px] font-black text-stone-500">BAŞLANGIÇ</span>
+                    <span className="text-[9px] font-black text-stone-500">{lang === 'tr' ? 'BAŞLANGIÇ' : 'START'}</span>
                     <input
                       type="date"
                       value={customStartDate}
@@ -2307,7 +2591,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[9px] font-black text-stone-500">BİTİŞ</span>
+                    <span className="text-[9px] font-black text-stone-500">{lang === 'tr' ? 'BİTİŞ' : 'END'}</span>
                     <input
                       type="date"
                       value={customEndDate}
@@ -2320,7 +2604,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
               )}
 
               {filteredQuizHistory.length === 0 ? (
-                <p className="text-xs opacity-60 py-12 text-center">Belirtilen aralıkta geçmiş sınav kaydı bulunmuyor.</p>
+                <p className="text-xs opacity-60 py-12 text-center">{lang === 'tr' ? 'Belirtilen aralıkta geçmiş sınav kaydı bulunmuyor.' : 'No past quiz records found in the specified range.'}</p>
               ) : (
                 <div className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -2329,7 +2613,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
                       <XAxis dataKey="range" tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 9 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={{ background: isLightTheme ? '#ffffff' : '#09090b', border: isLightTheme ? '1px solid #e7e5e4' : '1px solid #27272a', borderRadius: 12 }} />
-                      <Bar dataKey="count" name="Sınav Sayısı" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="count" name={lang === 'tr' ? 'Sınav Sayısı' : 'Quiz Count'} fill="#ec4899" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -2340,25 +2624,93 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
           {/* AI Report Column */}
           <div className="flex flex-col gap-4">
             <div className={`p-5 rounded-3xl border ${surfaceClass} flex flex-col gap-4 h-full`}>
-              <div className="flex justify-between items-center border-b border-stone-200 dark:border-zinc-800/60 pb-3">
-                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>AI SINAV RAPORU</span>
-                <button
-                  onClick={() => handleGenerateReport('quiz')}
-                  disabled={reportLoading === 'quiz'}
-                  className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black transition-all flex items-center gap-1 shadow-lg shadow-indigo-600/20"
-                >
-                  <Sparkles className="w-3 h-3" /> {reportLoading === 'quiz' ? 'Analiz Ediliyor...' : 'Rapor Üret'}
-                </button>
+              <div className="flex justify-between items-center border-b border-stone-200 dark:border-zinc-800/60 pb-3 flex-wrap gap-2">
+                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'AI SINAV RAPORU' : 'AI QUIZ REPORT'}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => { setQuizReportTab('active'); setSelectedPastQuizReport(null); }}
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black transition-all ${
+                        quizReportTab === 'active' ? 'bg-indigo-600 text-white shadow' : `${mutedClass} hover:text-indigo-500`
+                      }`}
+                    >
+                      {lang === 'tr' ? 'Son Rapor' : 'Latest'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuizReportTab('history')}
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black transition-all ${
+                        quizReportTab === 'history' ? 'bg-indigo-600 text-white shadow' : `${mutedClass} hover:text-indigo-500`
+                      }`}
+                    >
+                      {lang === 'tr' ? `Geçmiş (${quizReportHistory.length})` : `History (${quizReportHistory.length})`}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleGenerateReport('quiz')}
+                    disabled={reportLoading === 'quiz'}
+                    className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black transition-all flex items-center gap-1 shadow-lg shadow-indigo-600/20"
+                  >
+                    <Sparkles className="w-3 h-3" /> {reportLoading === 'quiz' ? (lang === 'tr' ? 'Analiz Ediliyor...' : 'Analyzing...') : (lang === 'tr' ? 'Rapor Üret' : 'Generate Report')}
+                  </button>
+                </div>
               </div>
 
-              {quizReport ? (
-                <div className="text-xs leading-relaxed opacity-95 flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1 whitespace-pre-wrap">
-                  {quizReport}
-                </div>
+              {quizReportTab === 'active' ? (
+                quizReport ? (
+                  <div className="text-xs leading-relaxed opacity-95 flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1 whitespace-pre-wrap">
+                    {quizReport}
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 gap-3">
+                    <Sparkles className="w-8 h-8 text-indigo-500 opacity-60 animate-pulse" />
+                    <p className="text-xs opacity-60">{lang === 'tr' ? 'Sınav sonuçlarınızı ve anlama derinliğinizi analiz etmek, gelişim raporunuzu hazırlamak için "Rapor Üret" butonuna basın.' : 'Click the "Generate Report" button to analyze your quiz results and comprehension depth and prepare your progress report.'}</p>
+                  </div>
+                )
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 gap-3">
-                  <Sparkles className="w-8 h-8 text-indigo-500 opacity-60 animate-pulse" />
-                  <p className="text-xs opacity-60">Sınav sonuçlarınızı ve anlama derinliğinizi analiz etmek, gelişim raporunuzu hazırlamak için "Rapor Üret" butonuna basın.</p>
+                <div className="flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1">
+                  {selectedPastQuizReport ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-center bg-stone-100 dark:bg-zinc-900/50 p-2.5 rounded-xl border border-stone-200 dark:border-zinc-800">
+                        <span className="text-[10px] font-black text-indigo-500">{selectedPastQuizReport.date}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPastQuizReport(null)}
+                          className="text-[10px] font-black text-indigo-500 hover:underline"
+                        >
+                          {lang === 'tr' ? '← Geri' : '← Back'}
+                        </button>
+                      </div>
+                      <div className="text-xs leading-relaxed opacity-95 whitespace-pre-wrap">
+                        {selectedPastQuizReport.content}
+                      </div>
+                    </div>
+                  ) : quizReportHistory.length === 0 ? (
+                    <p className="text-xs opacity-60 text-center py-8">{lang === 'tr' ? 'Henüz geçmiş rapor kaydı yok.' : 'No past report history yet.'}</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {quizReportHistory.map((item: any) => (
+                        <div key={item.id} className="flex justify-between items-center p-3 rounded-2xl border border-stone-200 dark:border-zinc-800 hover:bg-stone-50 dark:hover:bg-zinc-900 transition-colors">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPastQuizReport(item)}
+                            className="text-left font-black text-xs text-indigo-500 hover:underline flex-1 truncate mr-2"
+                          >
+                            📅 {item.date}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteHistoryItem('quiz', item.id)}
+                            className="text-red-500 hover:text-red-700 text-xs p-1"
+                            title={lang === 'tr' ? 'Sil' : 'Delete'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2372,32 +2724,32 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>TOPLAM KART</span>
-                <span className="text-xl font-black mt-1 text-current">{filteredFlashcards.length} kart</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{lang === 'tr' ? 'TOPLAM KART' : 'TOTAL CARDS'}</span>
+                <span className="text-xl font-black mt-1 text-current">{filteredFlashcards.length} {lang === 'tr' ? 'kart' : 'cards'}</span>
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>TOPLAM TEKRAR</span>
-                <span className="text-xl font-black mt-1 text-current">{totalReviews} tekrar</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{lang === 'tr' ? 'TOPLAM TEKRAR' : 'TOTAL REVIEWS'}</span>
+                <span className="text-xl font-black mt-1 text-current">{totalReviews} {lang === 'tr' ? 'tekrar' : 'reviews'}</span>
               </div>
               <div className={`p-4 rounded-2xl border flex flex-col ${surfaceClass}`}>
-                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>PEKİŞTİRİLEN KAVRAM</span>
-                <span className="text-xl font-black mt-1 text-current">{filteredFlashcards.filter((c: any) => (c.reviewsCount || 0) > 3).length} kart (3+ Tekrar)</span>
+                <span className={`text-[9px] font-black text-indigo-500 uppercase`}>{lang === 'tr' ? 'PEKİŞTİRİLEN KAVRAM' : 'REINFORCED CONCEPT'}</span>
+                <span className="text-xl font-black mt-1 text-current">{filteredFlashcards.filter((c: any) => (c.reviewsCount || 0) > 3).length} {lang === 'tr' ? 'kart (3+ Tekrar)' : 'cards (3+ Reviews)'}</span>
               </div>
             </div>
 
             {/* Flashcard repetition breakdown chart */}
             <div className={`rounded-3xl border p-5 ${surfaceClass}`}>
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <h3 className={`text-xs font-black ${titleClass}`}>Bilgi Kartı Tekrar Dağılımı</h3>
+                <h3 className={`text-xs font-black ${titleClass}`}>{lang === 'tr' ? 'Bilgi Kartı Tekrar Dağılımı' : 'Flashcard Review Distribution'}</h3>
                 
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
                     {[
-                      { id: 'daily', label: 'Günlük' },
-                      { id: 'weekly', label: 'Haftalık' },
-                      { id: 'monthly', label: 'Aylık' },
-                      { id: 'yearly', label: 'Yıllık' },
-                      { id: 'custom', label: 'Özel' }
+                      { id: 'daily', label: lang === 'tr' ? 'Günlük' : 'Daily' },
+                      { id: 'weekly', label: lang === 'tr' ? 'Haftalık' : 'Weekly' },
+                      { id: 'monthly', label: lang === 'tr' ? 'Aylık' : 'Monthly' },
+                      { id: 'yearly', label: lang === 'tr' ? 'Yıllık' : 'Yearly' },
+                      { id: 'custom', label: lang === 'tr' ? 'Özel' : 'Custom' }
                     ].map(p => (
                       <button
                         key={p.id}
@@ -2416,12 +2768,12 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
 
                   <div className="relative group">
                     <button type="button" className="h-8 px-3 rounded-xl border border-stone-200 dark:border-zinc-850 bg-white dark:bg-zinc-950 text-[10px] font-black flex items-center gap-1.5 hover:bg-stone-50 dark:hover:bg-zinc-900">
-                      <Download className="w-3.5 h-3.5" /> Verileri Dışa Aktar
+                      <Download className="w-3.5 h-3.5" /> {lang === 'tr' ? 'Verileri Dışa Aktar' : 'Export Data'}
                     </button>
                     <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white dark:bg-zinc-950 border border-stone-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-20 min-w-[120px]">
                       <button type="button" onClick={() => handleExportData('cards', 'csv')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">CSV (Excel)</button>
-                      <button type="button" onClick={() => handleExportData('cards', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">JSON Verisi</button>
-                      <button type="button" onClick={() => handleExportData('cards', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">TXT Metni</button>
+                      <button type="button" onClick={() => handleExportData('cards', 'json')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">{lang === 'tr' ? 'JSON Verisi' : 'JSON Data'}</button>
+                      <button type="button" onClick={() => handleExportData('cards', 'txt')} className="w-full text-left px-3 py-1.5 text-[10px] font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 flex items-center gap-1.5">{lang === 'tr' ? 'TXT Metni' : 'TXT Text'}</button>
                     </div>
                   </div>
                 </div>
@@ -2430,7 +2782,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
               {cardProgressRange === 'custom' && (
                 <div className="flex flex-wrap items-center gap-3 mb-4 bg-stone-50 dark:bg-zinc-900/20 p-3 rounded-2xl border border-stone-150 dark:border-zinc-900">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[9px] font-black text-stone-500">BAŞLANGIÇ</span>
+                    <span className="text-[9px] font-black text-stone-500">{lang === 'tr' ? 'BAŞLANGIÇ' : 'START'}</span>
                     <input
                       type="date"
                       value={customStartDate}
@@ -2440,7 +2792,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[9px] font-black text-stone-500">BİTİŞ</span>
+                    <span className="text-[9px] font-black text-stone-500">{lang === 'tr' ? 'BİTİŞ' : 'END'}</span>
                     <input
                       type="date"
                       value={customEndDate}
@@ -2453,7 +2805,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
               )}
 
               {filteredFlashcards.length === 0 ? (
-                <p className="text-xs opacity-60 py-12 text-center">Belirtilen aralıkta kayıtlı bilgi kartı bulunmuyor.</p>
+                <p className="text-xs opacity-60 py-12 text-center">{lang === 'tr' ? 'Belirtilen aralıkta kayıtlı bilgi kartı bulunmuyor.' : 'No registered flashcards found in the specified range.'}</p>
               ) : (
                 <div className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -2462,7 +2814,7 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
                       <XAxis dataKey="status" tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 9 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: isLightTheme ? '#57534e' : '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={{ background: isLightTheme ? '#ffffff' : '#09090b', border: isLightTheme ? '1px solid #e7e5e4' : '1px solid #27272a', borderRadius: 12 }} />
-                      <Bar dataKey="count" name="Kart Sayısı" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="count" name={lang === 'tr' ? 'Kart Sayısı' : 'Card Count'} fill="#10b981" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -2473,25 +2825,93 @@ Toplamda ${flashcards.length} karta sahipsiniz ve bugüne kadar ${totalReviews} 
           {/* AI Report Column */}
           <div className="flex flex-col gap-4">
             <div className={`p-5 rounded-3xl border ${surfaceClass} flex flex-col gap-4 h-full`}>
-              <div className="flex justify-between items-center border-b border-stone-200 dark:border-zinc-800/60 pb-3">
-                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>AI HAFIZA RAPORU</span>
-                <button
-                  onClick={() => handleGenerateReport('cards')}
-                  disabled={reportLoading === 'cards'}
-                  className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black transition-all flex items-center gap-1 shadow-lg shadow-indigo-600/20"
-                >
-                  <Sparkles className="w-3 h-3" /> {reportLoading === 'cards' ? 'Analiz Ediliyor...' : 'Rapor Üret'}
-                </button>
+              <div className="flex justify-between items-center border-b border-stone-200 dark:border-zinc-800/60 pb-3 flex-wrap gap-2">
+                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'AI HAFIZA RAPORU' : 'AI MEMORY REPORT'}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-stone-100 dark:bg-zinc-900 rounded-xl p-0.5 border border-stone-200 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => { setCardReportTab('active'); setSelectedPastCardReport(null); }}
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black transition-all ${
+                        cardReportTab === 'active' ? 'bg-indigo-600 text-white shadow' : `${mutedClass} hover:text-indigo-500`
+                      }`}
+                    >
+                      {lang === 'tr' ? 'Son Rapor' : 'Latest'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCardReportTab('history')}
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black transition-all ${
+                        cardReportTab === 'history' ? 'bg-indigo-600 text-white shadow' : `${mutedClass} hover:text-indigo-500`
+                      }`}
+                    >
+                      {lang === 'tr' ? `Geçmiş (${cardReportHistory.length})` : `History (${cardReportHistory.length})`}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleGenerateReport('cards')}
+                    disabled={reportLoading === 'cards'}
+                    className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black transition-all flex items-center gap-1 shadow-lg shadow-indigo-600/20"
+                  >
+                    <Sparkles className="w-3 h-3" /> {reportLoading === 'cards' ? (lang === 'tr' ? 'Analiz Ediliyor...' : 'Analyzing...') : (lang === 'tr' ? 'Rapor Üret' : 'Generate Report')}
+                  </button>
+                </div>
               </div>
 
-              {cardReport ? (
-                <div className="text-xs leading-relaxed opacity-95 flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1 whitespace-pre-wrap">
-                  {cardReport}
-                </div>
+              {cardReportTab === 'active' ? (
+                cardReport ? (
+                  <div className="text-xs leading-relaxed opacity-95 flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1 whitespace-pre-wrap">
+                    {cardReport}
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 gap-3">
+                    <Sparkles className="w-8 h-8 text-indigo-500 opacity-60 animate-pulse" />
+                    <p className="text-xs opacity-60">{lang === 'tr' ? 'Hafıza laboratuvarı pekiştirme seanslarınızı analiz etmek ve kişisel gelişim analiz raporunuzu hazırlamak için "Rapor Üret" butonuna basın.' : 'Click the "Generate Report" button to analyze your memory lab reinforcement sessions and prepare your progress report.'}</p>
+                  </div>
+                )
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 gap-3">
-                  <Sparkles className="w-8 h-8 text-indigo-500 opacity-60 animate-pulse" />
-                  <p className="text-xs opacity-60">Hafıza laboratuvarı pekiştirme seanslarınızı analiz etmek ve kişisel gelişim analiz raporunuzu hazırlamak için "Rapor Üret" butonuna basın.</p>
+                <div className="flex-1 overflow-y-auto max-h-[380px] custom-note-scrollbar pr-1">
+                  {selectedPastCardReport ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-center bg-stone-100 dark:bg-zinc-900/50 p-2.5 rounded-xl border border-stone-200 dark:border-zinc-800">
+                        <span className="text-[10px] font-black text-indigo-500">{selectedPastCardReport.date}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPastCardReport(null)}
+                          className="text-[10px] font-black text-indigo-500 hover:underline"
+                        >
+                          {lang === 'tr' ? '← Geri' : '← Back'}
+                        </button>
+                      </div>
+                      <div className="text-xs leading-relaxed opacity-95 whitespace-pre-wrap">
+                        {selectedPastCardReport.content}
+                      </div>
+                    </div>
+                  ) : cardReportHistory.length === 0 ? (
+                    <p className="text-xs opacity-60 text-center py-8">{lang === 'tr' ? 'Henüz geçmiş rapor kaydı yok.' : 'No past report history yet.'}</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {cardReportHistory.map((item: any) => (
+                        <div key={item.id} className="flex justify-between items-center p-3 rounded-2xl border border-stone-200 dark:border-zinc-800 hover:bg-stone-50 dark:hover:bg-zinc-900 transition-colors">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPastCardReport(item)}
+                            className="text-left font-black text-xs text-indigo-500 hover:underline flex-1 truncate mr-2"
+                          >
+                            📅 {item.date}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteHistoryItem('cards', item.id)}
+                            className="text-red-500 hover:text-red-700 text-xs p-1"
+                            title={lang === 'tr' ? 'Sil' : 'Delete'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2593,6 +3013,7 @@ function WorkspacePage({
   refreshBooks: () => void;
   showAlert: (message: string, title?: string) => void;
 }) {
+  const { lang } = useTranslation();
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const handleExport = (format: 'txt' | 'md' | 'html' | 'doc' | 'pdf') => {
@@ -2713,8 +3134,8 @@ function WorkspacePage({
   return (
     <section className="flex flex-col gap-5">
       <PageHeader
-        title="Çalışma Alanı"
-        description="Kütüphane, belge detayı, notlar ve AI araçları tek Master-Detail görünümünde."
+        title={lang === 'tr' ? 'Çalışma Alanı' : 'Workspace'}
+        description={lang === 'tr' ? 'Kütüphane, belge detayı, notlar ve AI araçları tek Master-Detail görünümünde.' : 'Library, document details, notes, and AI tools in a single Master-Detail view.'}
         titleClass={titleClass}
         mutedClass={mutedClass}
       />
@@ -2722,8 +3143,8 @@ function WorkspacePage({
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,30%)_minmax(0,70%)] gap-5 min-h-[calc(100vh-9rem)]">
         <aside className={`rounded-2xl border p-4 ${surfaceClass} flex flex-col min-h-[560px]`}>
           <div className="flex items-center justify-between gap-3">
-            <h2 className={`text-base font-black ${titleClass}`}>Kitaplık</h2>
-            <span className={`text-[11px] ${mutedClass}`}>{filteredBooks.length} belge</span>
+            <h2 className={`text-base font-black ${titleClass}`}>{lang === 'tr' ? 'Kitaplık' : 'Library'}</h2>
+            <span className={`text-[11px] ${mutedClass}`}>{filteredBooks.length} {lang === 'tr' ? 'belge' : (filteredBooks.length === 1 ? 'document' : 'documents')}</span>
           </div>
 
           <div className="mt-4 flex flex-col gap-3">
@@ -2731,14 +3152,14 @@ function WorkspacePage({
               onClick={onAddDocument}
               className="h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/15"
             >
-              <Plus className="w-4 h-4" /> Yeni Belge Ekle
+              <Plus className="w-4 h-4" /> {lang === 'tr' ? 'Yeni Belge Ekle' : 'Add New Document'}
             </button>
             <label className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
                 value={bookSearch}
                 onChange={(event) => setBookSearch(event.target.value)}
-                placeholder="Belge ara..."
+                placeholder={lang === 'tr' ? 'Belge ara...' : 'Search document...'}
                 className={`w-full h-10 pl-9 pr-3 rounded-xl border text-sm outline-none ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950 text-zinc-100'}`}
               />
             </label>
@@ -2747,16 +3168,16 @@ function WorkspacePage({
               onChange={(event) => setBookFilter(event.target.value as BookFilter)}
               className={`h-10 px-3 rounded-xl border text-xs font-bold outline-none ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950 text-zinc-100'}`}
             >
-              <option value="all">Tüm Belgeler</option>
-              <option value="active">Devam Edenler</option>
-              <option value="completed">Tamamlananlar</option>
+              <option value="all">{lang === 'tr' ? 'Tüm Belgeler' : 'All Documents'}</option>
+              <option value="active">{lang === 'tr' ? 'Devam Edenler' : 'In Progress'}</option>
+              <option value="completed">{lang === 'tr' ? 'Tamamlananlar' : 'Completed'}</option>
             </select>
           </div>
 
           <div className="mt-4 flex-1 overflow-y-auto pr-1 custom-note-scrollbar">
             <div className="flex flex-col gap-2">
               {filteredBooks.length === 0 ? (
-                <EmptyState text="Bu filtrede belge yok." />
+                <EmptyState text={lang === 'tr' ? 'Bu filtrede belge yok.' : 'No documents in this filter.'} />
               ) : filteredBooks.map(book => (
                 <button
                   key={book.id}
@@ -2769,8 +3190,8 @@ function WorkspacePage({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h3 className={`text-sm font-black line-clamp-2 ${titleClass}`}>{book.title}</h3>
-                      <p className={`text-[11px] mt-1 line-clamp-1 ${mutedClass}`}>{(book.tags || []).join(', ') || 'Belge'}</p>
+                      <h3 className={`text-sm font-black line-clamp-2 ${titleClass}`}>{book.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : book.title}</h3>
+                      <p className={`text-[11px] mt-1 line-clamp-1 ${mutedClass}`}>{(book.id === 'sample-welcome' && lang !== 'tr' ? ['Guide', 'Beginner'] : (book.tags || [])).join(', ') || (lang === 'tr' ? 'Belge' : 'Document')}</p>
                     </div>
                     <span
                       role="button"
@@ -2795,17 +3216,21 @@ function WorkspacePage({
 
         <section className={`rounded-2xl border ${surfaceClass} min-h-[560px] flex flex-col overflow-hidden`}>
           {!selectedBook ? (
-            <EmptyState text="Çalışmak için soldan bir belge seçin." />
+            <EmptyState text={lang === 'tr' ? 'Çalışmak için soldan bir belge seçin.' : 'Select a document from the left to work.'} />
           ) : (
             <>
               <div className="p-5 border-b border-stone-200 dark:border-zinc-800 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                 <div className="min-w-0">
-                  <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${mutedClass}`}>Belge Detayı</p>
+                  <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${mutedClass}`}>{lang === 'tr' ? 'Belge Detayı' : 'Document Detail'}</p>
                   <h2 className={`text-2xl font-black mt-2 truncate ${titleClass}`}>{selectedBook.title}</h2>
-                  <p className={`text-xs mt-2 ${mutedClass}`}>%{selectedBook.progress || 0} tamamlandı · {selectedBook.estimatedMinutesTotal || 1} dk tahmini okuma</p>
+                  <p className={`text-xs mt-2 ${mutedClass}`}>
+                    {lang === 'tr'
+                      ? `%${selectedBook.progress || 0} tamamlandı · ${selectedBook.estimatedMinutesTotal || 1} dk tahmini okuma`
+                      : `%${selectedBook.progress || 0} completed · ${selectedBook.estimatedMinutesTotal || 1} min estimate`}
+                  </p>
                 </div>
                 <button onClick={() => onStartReading(selectedBook)} className="h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black flex items-center justify-center gap-2 shrink-0">
-                  <Play className="w-4 h-4 fill-white" /> RSVP Hızlı Okumayı Başlat
+                  <Play className="w-4 h-4 fill-white" /> {lang === 'tr' ? 'RSVP Hızlı Okumayı Başlat' : 'Start RSVP Speed Reading'}
                 </button>
               </div>
 
@@ -2817,7 +3242,14 @@ function WorkspacePage({
                       onClick={() => setWorkspaceTab(tab.id)}
                       className={`h-9 px-4 rounded-lg text-xs font-black flex items-center gap-2 ${workspaceTab === tab.id ? 'bg-indigo-600 text-white' : mutedClass}`}
                     >
-                      <tab.icon className="w-4 h-4" /> {tab.label}
+                      <tab.icon className="w-4 h-4" />
+                      {tab.id === 'content'
+                        ? (lang === 'tr' ? 'Belge İçeriği' : 'Document Content')
+                        : tab.id === 'notes'
+                        ? (lang === 'tr' ? 'Notlarım' : 'My Notes')
+                        : tab.id === 'analysis'
+                        ? (lang === 'tr' ? 'Yapay Zeka Analizi' : 'AI Analysis')
+                        : (lang === 'tr' ? 'Yapay Zeka Soru & Aksiyon' : 'AI Question & Action')}
                     </button>
                   ))}
                 </div>
@@ -2829,29 +3261,29 @@ function WorkspacePage({
                     {isEditingContent ? (
                       <div className="flex flex-col gap-4">
                         <label className="flex flex-col gap-1.5">
-                          <span className={`text-xs font-bold ${titleClass}`}>Belge Başlığı</span>
+                          <span className={`text-xs font-bold ${titleClass}`}>{lang === 'tr' ? 'Belge Başlığı' : 'Document Title'}</span>
                           <input
                             type="text"
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
                             className={`h-11 px-4 rounded-xl border text-sm outline-none font-bold ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-850 bg-zinc-950 text-zinc-100'}`}
-                            placeholder="Başlık girin..."
+                            placeholder={lang === 'tr' ? 'Başlık girin...' : 'Enter title...'}
                           />
                         </label>
                         <label className="flex flex-col gap-1.5">
-                          <span className={`text-xs font-bold ${titleClass}`}>Belge İçeriği</span>
+                          <span className={`text-xs font-bold ${titleClass}`}>{lang === 'tr' ? 'Belge İçeriği' : 'Document Content'}</span>
                           <textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
                             className={`w-full min-h-[460px] p-4 rounded-2xl border text-sm outline-none resize-y custom-note-scrollbar ${isLightTheme ? 'border-stone-300 bg-stone-50 text-stone-900' : 'border-zinc-850 bg-zinc-950/40 text-zinc-100'}`}
-                            placeholder="Belge içeriğini buraya girin..."
+                            placeholder={lang === 'tr' ? 'Belge içeriğini buraya girin...' : 'Enter document content here...'}
                           />
                         </label>
                         <div className="flex gap-2">
                           <button
                             onClick={() => {
                               if (!editTitle.trim() || !editContent.trim()) {
-                                showAlert('Başlık ve içerik alanları boş bırakılamaz.', 'Hata');
+                                showAlert(lang === 'tr' ? 'Başlık ve içerik alanları boş bırakılamaz.' : 'Title and content fields cannot be empty.', lang === 'tr' ? 'Hata' : 'Error');
                                 return;
                               }
                               StorageService.updateBookContent(selectedBook.id, editTitle.trim(), editContent.trim());
@@ -2860,7 +3292,7 @@ function WorkspacePage({
                             }}
                             className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black flex items-center gap-2"
                           >
-                            <Save className="w-4 h-4" /> Kaydet
+                            <Save className="w-4 h-4" /> {lang === 'tr' ? 'Kaydet' : 'Save'}
                           </button>
                           <button
                             onClick={() => {
@@ -2870,7 +3302,7 @@ function WorkspacePage({
                             }}
                             className={`h-10 px-5 rounded-xl border text-xs font-black ${isLightTheme ? 'border-stone-300 hover:bg-stone-100 text-stone-700 bg-white' : 'border-zinc-800 hover:bg-zinc-900 text-zinc-300 bg-transparent'}`}
                           >
-                            İptal
+                            {lang === 'tr' ? 'İptal' : 'Cancel'}
                           </button>
                         </div>
                       </div>
@@ -2882,17 +3314,17 @@ function WorkspacePage({
                               onClick={() => setShowExportMenu(!showExportMenu)}
                               className={`h-9 px-4 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${isLightTheme ? 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-800 bg-transparent text-zinc-300 hover:bg-zinc-900/50'}`}
                             >
-                              <Download className="w-3.5 h-3.5" /> Dışa Aktar <ChevronDown className="w-3 h-3 opacity-60" />
+                              <Download className="w-3.5 h-3.5" /> {lang === 'tr' ? 'Dışa Aktar' : 'Export'} <ChevronDown className="w-3 h-3 opacity-60" />
                             </button>
                             {showExportMenu && (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
                                 <div className={`absolute right-0 mt-1.5 w-40 rounded-xl border p-1 shadow-lg z-50 flex flex-col gap-0.5 ${isLightTheme ? 'border-stone-200 bg-white text-stone-700' : 'border-zinc-800 bg-zinc-950 text-zinc-300'}`}>
-                                  <button onClick={() => handleExport('txt')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>TXT olarak (.txt)</button>
+                                  <button onClick={() => handleExport('txt')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>{lang === 'tr' ? 'TXT olarak (.txt)' : 'As TXT (.txt)'}</button>
                                   <button onClick={() => handleExport('md')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>Markdown (.md)</button>
-                                  <button onClick={() => handleExport('html')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>HTML olarak (.html)</button>
-                                  <button onClick={() => handleExport('doc')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>Word olarak (.doc)</button>
-                                  <button onClick={() => handleExport('pdf')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>PDF olarak (.pdf)</button>
+                                  <button onClick={() => handleExport('html')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>{lang === 'tr' ? 'HTML olarak (.html)' : 'As HTML (.html)'}</button>
+                                  <button onClick={() => handleExport('doc')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>{lang === 'tr' ? 'Word olarak (.doc)' : 'As Word (.doc)'}</button>
+                                  <button onClick={() => handleExport('pdf')} className={`h-8 px-3 rounded-lg text-left text-xs font-bold w-full transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900`}>{lang === 'tr' ? 'PDF olarak (.pdf)' : 'As PDF (.pdf)'}</button>
                                 </div>
                               </>
                             )}
@@ -2905,7 +3337,7 @@ function WorkspacePage({
                             }}
                             className={`h-9 px-4 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${isLightTheme ? 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-800 bg-transparent text-zinc-300 hover:bg-zinc-900/50'}`}
                           >
-                            Düzenle
+                            {lang === 'tr' ? 'Düzenle' : 'Edit'}
                           </button>
                           <button
                             onClick={() => {
@@ -3003,6 +3435,8 @@ function AnalysisTab(props: any) {
     onGenerateWord
   } = props;
 
+  const { t, lang } = useTranslation();
+
   if (!aiStatus.enabled) {
     return <AiDisabledCard onOpenSettings={onOpenSettings} surfaceClass={surfaceClass} mutedClass={mutedClass} />;
   }
@@ -3011,50 +3445,50 @@ function AnalysisTab(props: any) {
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {aiError && <div className="xl:col-span-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-400">{aiError}</div>}
 
-      <Panel title="Metin Özeti" surfaceClass={softSurfaceClass} titleClass={titleClass} mutedClass={mutedClass}>
-        <p className={`text-xs leading-relaxed ${mutedClass}`}>{selectedBook.aiSummary?.summary || 'Bu belge için henüz AI özeti oluşturulmadı.'}</p>
+      <Panel title={t('ai_summary_title')} surfaceClass={softSurfaceClass} titleClass={titleClass} mutedClass={mutedClass}>
+        <p className={`text-xs leading-relaxed ${mutedClass}`}>{selectedBook.aiSummary?.summary || t('ai_summary_empty')}</p>
         {selectedBook.aiSummary?.keyPoints?.length ? (
           <ul className={`mt-3 list-disc pl-4 text-xs leading-relaxed ${mutedClass}`}>
             {selectedBook.aiSummary.keyPoints.map((point: string) => <li key={point}>{point}</li>)}
           </ul>
         ) : null}
         <button onClick={onGenerateSummary} disabled={aiBusy !== null} className="mt-4 h-10 px-4 rounded-xl bg-indigo-600 text-white text-xs font-black disabled:opacity-50">
-          {aiBusy === 'summary' ? 'Özetleniyor...' : selectedBook.aiSummary ? 'Özeti Yenile' : 'Özet Çıkar'}
+          {aiBusy === 'summary' ? t('ai_summary_loading') : selectedBook.aiSummary ? t('ai_summary_btn_refresh') : t('ai_summary_btn_extract')}
         </button>
       </Panel>
 
-      <Panel title="Zorluk Analizi" surfaceClass={softSurfaceClass} titleClass={titleClass} mutedClass={mutedClass}>
+      <Panel title={t('ai_difficulty_title')} surfaceClass={softSurfaceClass} titleClass={titleClass} mutedClass={mutedClass}>
         <p className={`text-xs leading-relaxed ${mutedClass}`}>
           {selectedBook.difficultyInfo
             ? `${selectedBook.difficultyInfo.level} (${selectedBook.difficultyInfo.score}/100): ${selectedBook.difficultyInfo.description}`
-            : 'Bu belge için henüz zorluk analizi yapılmadı.'}
+            : t('ai_difficulty_empty')}
         </p>
         {selectedBook.difficultyInfo?.complexWords?.length ? (
-          <p className={`mt-3 text-xs ${mutedClass}`}>Zor kelimeler: {selectedBook.difficultyInfo.complexWords.join(', ')}</p>
+          <p className={`mt-3 text-xs ${mutedClass}`}>{t('ai_difficulty_words')} {selectedBook.difficultyInfo.complexWords.join(', ')}</p>
         ) : null}
         <button onClick={onGenerateDifficulty} disabled={aiBusy !== null} className="mt-4 h-10 px-4 rounded-xl border border-amber-500/35 text-amber-400 text-xs font-black disabled:opacity-50">
-          {aiBusy === 'difficulty' ? 'Analiz ediliyor...' : selectedBook.difficultyInfo ? 'Analizi Yenile' : 'Zorluk Analizi Yap'}
+          {aiBusy === 'difficulty' ? t('ai_difficulty_loading') : selectedBook.difficultyInfo ? t('ai_difficulty_btn_refresh') : t('ai_difficulty_btn')}
         </button>
       </Panel>
 
       <div className={`xl:col-span-2 rounded-2xl border p-5 ${softSurfaceClass}`}>
-        <h3 className={`text-sm font-black ${titleClass}`}>Kelime Sözlüğü</h3>
+        <h3 className={`text-sm font-black ${titleClass}`}>{t('ai_dict_title')}</h3>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
           <input
             value={wordQuery}
             onChange={(event) => setWordQuery(event.target.value)}
-            placeholder="Açıklanacak kelime veya kavram..."
+            placeholder={t('ai_dict_placeholder')}
             className={`h-11 px-4 rounded-xl border text-sm outline-none ${isLightTheme ? 'border-stone-300 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950 text-zinc-100'}`}
           />
           <button onClick={onGenerateWord} disabled={aiBusy !== null || !wordQuery.trim()} className="h-11 px-5 rounded-xl bg-indigo-600 text-white text-xs font-black disabled:opacity-50">
-            {aiBusy === 'word' ? 'Açıklanıyor...' : 'Açıkla'}
+            {aiBusy === 'word' ? t('ai_dict_loading') : t('ai_dict_btn')}
           </button>
         </div>
         {dictionaryResult && (
           <div className={`mt-4 rounded-xl border p-4 ${surfaceClass}`}>
             <h4 className={`text-sm font-black ${titleClass}`}>{dictionaryResult.word}</h4>
             <p className={`text-xs leading-relaxed mt-2 ${mutedClass}`}>{dictionaryResult.definition}</p>
-            {dictionaryResult.synonyms?.length ? <p className={`text-xs mt-2 ${mutedClass}`}>Benzerleri: {dictionaryResult.synonyms.join(', ')}</p> : null}
+            {dictionaryResult.synonyms?.length ? <p className={`text-xs mt-2 ${mutedClass}`}>{lang === 'tr' ? 'Benzerleri: ' : 'Synonyms: '}{dictionaryResult.synonyms.join(', ')}</p> : null}
           </div>
         )}
       </div>
@@ -3075,6 +3509,8 @@ function ActionsTab({
   onGenerateComprehension,
   onGenerateInsights
 }: any) {
+  const { t, lang } = useTranslation();
+
   if (!aiStatus.enabled) {
     return <AiDisabledCard onOpenSettings={onOpenSettings} surfaceClass={surfaceClass} mutedClass={mutedClass} />;
   }
@@ -3083,9 +3519,9 @@ function ActionsTab({
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {aiError && <div className="xl:col-span-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-400">{aiError}</div>}
 
-      <Panel title="Kavrama Soruları" surfaceClass={surfaceClass} titleClass={titleClass} mutedClass={mutedClass}>
+      <Panel title={t('ai_comprehension_title')} surfaceClass={surfaceClass} titleClass={titleClass} mutedClass={mutedClass}>
         <button onClick={onGenerateComprehension} disabled={aiBusy !== null} className="h-10 px-4 rounded-xl bg-indigo-600 text-white text-xs font-black disabled:opacity-50">
-          {aiBusy === 'comprehension' ? 'Sorular üretiliyor...' : 'Kavrama Soruları Üret'}
+          {aiBusy === 'comprehension' ? t('ai_comprehension_loading') : t('ai_comprehension_btn')}
         </button>
         {comprehensionResult?.questions?.length ? (
           <div className="mt-4 flex flex-col gap-3">
@@ -3096,26 +3532,26 @@ function ActionsTab({
               </div>
             ))}
           </div>
-        ) : <p className={`mt-4 text-xs ${mutedClass}`}>Henüz soru üretilmedi.</p>}
+        ) : <p className={`mt-4 text-xs ${mutedClass}`}>{lang === 'tr' ? 'Henüz soru üretilmedi.' : 'No questions generated yet.'}</p>}
         {comprehensionResult?.feynmanPrompt && (
           <div className="mt-4 rounded-xl border border-indigo-500/25 bg-indigo-500/10 p-4">
-            <h4 className="text-xs font-black text-indigo-400">Feynman Sorusu</h4>
+            <h4 className="text-xs font-black text-indigo-400">{lang === 'tr' ? 'Feynman Sorusu' : 'Feynman Question'}</h4>
             <p className={`text-xs mt-2 ${mutedClass}`}>{comprehensionResult.feynmanPrompt}</p>
           </div>
         )}
       </Panel>
 
-      <Panel title="İçgörü ve Aksiyon" surfaceClass={surfaceClass} titleClass={titleClass} mutedClass={mutedClass}>
+      <Panel title={lang === 'tr' ? 'İçgörü ve Aksiyon' : 'Insights & Actions'} surfaceClass={surfaceClass} titleClass={titleClass} mutedClass={mutedClass}>
         <button onClick={onGenerateInsights} disabled={aiBusy !== null} className="h-10 px-4 rounded-xl bg-indigo-600 text-white text-xs font-black disabled:opacity-50">
-          {aiBusy === 'insights' ? 'Çıkarılıyor...' : 'Aksiyon Önerisi Çıkar'}
+          {aiBusy === 'insights' ? t('ai_suggestions_loading') : t('ai_suggestions_btn')}
         </button>
         {insightsResult ? (
           <div className={`mt-4 text-xs leading-relaxed ${mutedClass}`}>
             {insightsResult.keyInsights?.length ? <ul className="list-disc pl-4">{insightsResult.keyInsights.map((item: string) => <li key={item}>{item}</li>)}</ul> : null}
-            <p className="mt-3"><strong>Aksiyon:</strong> {insightsResult.actionableIdea}</p>
-            <p className="mt-2"><strong>Mental Model:</strong> {insightsResult.mentalModel}</p>
+            <p className="mt-3"><strong>{lang === 'tr' ? 'Aksiyon:' : 'Action:'}</strong> {insightsResult.actionableIdea}</p>
+            <p className="mt-2"><strong>{lang === 'tr' ? 'Mental Model:' : 'Mental Model:'}</strong> {insightsResult.mentalModel}</p>
           </div>
-        ) : <p className={`mt-4 text-xs ${mutedClass}`}>Henüz içgörü çıkarılmadı.</p>}
+        ) : <p className={`mt-4 text-xs ${mutedClass}`}>{t('ai_suggestions_empty')}</p>}
       </Panel>
     </div>
   );
@@ -3332,6 +3768,26 @@ function SettingsPage({
       console.error(e);
     }
 
+    // 3. Clean AI Reports Histories
+    const cutoffTime = cutoff.getTime();
+    ['velox_reading_reports_history', 'velox_quiz_reports_history', 'velox_card_reports_history'].forEach(key => {
+      try {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          const list = JSON.parse(stored);
+          if (Array.isArray(list)) {
+            const updated = list.filter((item: any) => {
+              const itemTime = Number(item.id);
+              return !isNaN(itemTime) && itemTime >= cutoffTime;
+            });
+            localStorage.setItem(key, JSON.stringify(updated));
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    });
+
     alert(t('st_validation_success_optimize'));
     window.location.reload();
   };
@@ -3380,7 +3836,7 @@ function SettingsPage({
                   { id: 'gemini', label: 'Google Gemini' },
                   { id: 'openai', label: 'OpenAI ChatGPT' },
                   { id: 'claude', label: 'Anthropic Claude' },
-                  { id: 'local', label: 'Ollama (Lokal)' }
+                  { id: 'local', label: lang === 'tr' ? 'Ollama (Lokal)' : 'Ollama (Local)' }
                 ].map(p => (
                   <button
                     key={p.id}
@@ -3445,7 +3901,7 @@ function SettingsPage({
               {selectedProvider === 'local' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="flex flex-col gap-2">
-                    <span className="text-xs font-bold">Lokal API Bağlantı Adresi (URL)</span>
+                    <span className="text-xs font-bold">{lang === 'tr' ? 'Lokal API Bağlantı Adresi (URL)' : 'Local API Connection Address (URL)'}</span>
                     <input
                       type="text"
                       value={localUrlDraft}
@@ -3455,7 +3911,7 @@ function SettingsPage({
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-xs font-bold">Model Adı</span>
+                    <span className="text-xs font-bold">{lang === 'tr' ? 'Model Adı' : 'Model Name'}</span>
                     <input
                       type="text"
                       value={localModelDraft}
@@ -3705,17 +4161,17 @@ function GuideContent({
       intro: {
         title: '5N1K ile Velox Okuma Asistanı',
         desc: 'Velox\'un vizyonunu, amacını ve temel felsefesini sorgulayan soruların yanıtları.',
-        ne_title: 'NE (What)',
+        ne_title: 'NE',
         ne_desc: 'Velox; odaklanmış RSVP hızlı okuma, dinamik kütüphane/not yönetimi, Leitner hafıza kartı pekiştirmesi ve otomatik kavrama testleri sunan bütünsel bir akıllı okuma asistanıdır.',
-        neden_title: 'NEDEN (Why)',
+        neden_title: 'NEDEN',
         neden_desc: 'Bilgi çağında uzun dokümanları hızla taramak, gözün satır başı-sonu git-gellerini azaltarak odak kaybını engellemek ve okunan bilgiyi kalıcı hafızaya aktarmak için tasarlanmıştır.',
-        nasıl_title: 'NASIL (How)',
+        nasıl_title: 'NASIL',
         nasıl_desc: 'Kütüphaneye yüklenen metinleri RSVP vizörüyle kelime kelime oynatır. Yapay zeka ile otomatik özet, zorluk analizi ve kavrama testleri oluşturup, Leitner kutu algoritmasıyla kavramları test edersiniz.',
-        nezaman_title: 'NE ZAMAN (When)',
+        nezaman_title: 'NE ZAMAN',
         nezaman_desc: 'Ders çalışırken, uzun araştırma makalelerini incelerken, yeni bir teknik dokümantasyon okurken veya günlük okuma alışkanlığınızı takip ederken dilediğiniz an kullanabilirsiniz.',
-        nerede_title: 'NEREDE (Where)',
+        nerede_title: 'NEREDE',
         nerede_desc: 'Velox tamamen masaüstünüzde çalışır. Çevrimdışı öncelikli (offline-first) mimarisi sayesinde tüm kütüphaneniz, notlarınız ve test başarı geçmişiniz yerel bilgisayarınızda depolanır.',
-        kim_title: 'KİM (Who)',
+        kim_title: 'KİM',
         kim_desc: 'Öğrenciler, yazılımcılar, araştırmacılar, akademisyenler ve okuma odağını en üst düzeye çıkararak zamandan tasarruf etmek isteyen tüm okurlar için uygundur.'
       },
       features: {
@@ -4170,13 +4626,18 @@ function Panel({ title, children, surfaceClass, titleClass }: { title: string; c
 }
 
 function AiDisabledCard({ onOpenSettings, surfaceClass, mutedClass }: { onOpenSettings: () => void; surfaceClass: string; mutedClass: string }) {
+  const { lang } = useTranslation();
   return (
     <div className={`rounded-2xl border p-6 ${surfaceClass}`}>
-      <h3 className="text-base font-black">AI Kapalı</h3>
+      <h3 className="text-base font-black">{lang === 'tr' ? 'AI Kapalı' : 'AI Offline / Disabled'}</h3>
       <p className={`text-sm mt-2 max-w-2xl leading-relaxed ${mutedClass}`}>
-        Yapay zeka özellikleri isteğe bağlıdır. Ayarlar sayfasından bir yapay zeka sağlayıcısı (Gemini, OpenAI, Claude veya Lokal Model) yapılandırdığınızda; metin özeti, zorluk analizi, kelime sözlüğü ve kavrama araçları aktif hale gelecektir.
+        {lang === 'tr'
+          ? 'Yapay zeka özellikleri isteğe bağlıdır. Ayarlar sayfasından bir yapay zeka sağlayıcısı (Gemini, OpenAI, Claude veya Lokal Model) yapılandırdığınızda; metin özeti, zorluk analizi, kelime sözlüğü ve kavrama araçları aktif hale gelecektir.'
+          : 'AI features are optional. Once you configure an AI provider (Gemini, OpenAI, Claude, or a Local Model) in Settings, text summaries, difficulty analysis, flashcards, and comprehension quiz tools will become active.'}
       </p>
-      <button onClick={onOpenSettings} className="mt-4 h-10 px-4 rounded-xl bg-indigo-600 text-white text-xs font-black">Ayarlara Git</button>
+      <button onClick={onOpenSettings} className="mt-4 h-10 px-4 rounded-xl bg-indigo-600 text-white text-xs font-black">
+        {lang === 'tr' ? 'Ayarlara Git' : 'Go to Settings'}
+      </button>
     </div>
   );
 }
@@ -4192,6 +4653,7 @@ function AboutPage({
   mutedClass,
   isLightTheme
 }: any) {
+  const { t, lang } = useTranslation();
   const [activeModal, setActiveModal] = useState<'eula' | 'privacy' | 'licenses' | null>(null);
 
   const handleOpenLink = () => {
@@ -4205,7 +4667,7 @@ function AboutPage({
         <img src="/velox-icon.svg" alt="Velox Logo" className="w-48 h-48 object-contain -mb-5" />
         <h2 className={`text-3xl font-black tracking-tight ${titleClass}`}>Velox</h2>
         <p className={`text-sm mt-2 max-w-md leading-relaxed ${mutedClass}`}>
-          Okuma verimliliğinizi optimize eden, belgelerinizi analiz eden ve notlarınızı yöneten modern ve sade bir yazılım.
+          {t('about_desc')}
         </p>
       </div>
 
@@ -4216,7 +4678,7 @@ function AboutPage({
             <img src="/vellium-icon.svg" alt="Vellium Logo" className="w-7 h-7 filter drop-shadow-[0_0_4px_rgba(129,140,248,0.6)]" />
           </div>
           <div>
-            <p className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>GELİŞTİRİCİ</p>
+            <p className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{t('about_author')}</p>
             <h3 className={`text-sm font-black ${titleClass}`}>Vellium.dev</h3>
             <a href="https://vellium.dev" target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-500 hover:underline">vellium.dev</a>
           </div>
@@ -4225,13 +4687,13 @@ function AboutPage({
           onClick={handleOpenLink}
           className={`h-9 px-4 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${isLightTheme ? 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-800 bg-transparent text-zinc-300 hover:bg-zinc-900/50'}`}
         >
-          Web Sitesi <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+          {lang === 'tr' ? 'Web Sitesi' : 'Website'} <ExternalLink className="w-3.5 h-3.5 opacity-60" />
         </button>
       </div>
 
       {/* Legal List */}
       <div className={`w-full mt-6 rounded-2xl border p-5 ${surfaceClass}`}>
-        <p className={`text-[10px] font-black uppercase tracking-wider ${mutedClass} mb-4`}>YASAL</p>
+        <p className={`text-[10px] font-black uppercase tracking-wider ${mutedClass} mb-4`}>{lang === 'tr' ? 'YASAL' : 'LEGAL'}</p>
         <div className="flex flex-col divide-y divide-stone-200 dark:divide-zinc-800/60">
           {/* EULA */}
           <button
@@ -4241,8 +4703,8 @@ function AboutPage({
             <div className="flex items-center gap-3">
               <Scale className="w-4 h-4 text-indigo-500" />
               <div>
-                <h4 className={`text-sm font-black ${titleClass}`}>Kullanım Koşulları (EULA)</h4>
-                <p className={`text-xs mt-0.5 ${mutedClass}`}>Son kullanıcı lisans sözleşmesi</p>
+                <h4 className={`text-sm font-black ${titleClass}`}>{lang === 'tr' ? 'Kullanım Koşulları (EULA)' : 'Terms of Use (EULA)'}</h4>
+                <p className={`text-xs mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'Son kullanıcı lisans sözleşmesi' : 'End user license agreement'}</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 opacity-40" />
@@ -4256,8 +4718,8 @@ function AboutPage({
             <div className="flex items-center gap-3">
               <Shield className="w-4 h-4 text-indigo-500" />
               <div>
-                <h4 className={`text-sm font-black ${titleClass}`}>Gizlilik Politikası</h4>
-                <p className={`text-xs mt-0.5 ${mutedClass}`}>Veri toplama ve gizlilik bilgileri</p>
+                <h4 className={`text-sm font-black ${titleClass}`}>{lang === 'tr' ? 'Gizlilik Politikası' : 'Privacy Policy'}</h4>
+                <p className={`text-xs mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'Veri toplama ve gizlilik bilgileri' : 'Data collection and privacy information'}</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 opacity-40" />
@@ -4271,8 +4733,8 @@ function AboutPage({
             <div className="flex items-center gap-3">
               <Heart className="w-4 h-4 text-indigo-500" />
               <div>
-                <h4 className={`text-sm font-black ${titleClass}`}>Açık Kaynak Lisansları</h4>
-                <p className={`text-xs mt-0.5 ${mutedClass}`}>Üçüncü parti yazılım bildirimleri</p>
+                <h4 className={`text-sm font-black ${titleClass}`}>{lang === 'tr' ? 'Açık Kaynak Lisansları' : 'Open Source Licenses'}</h4>
+                <p className={`text-xs mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'Üçüncü parti yazılım bildirimleri' : 'Third-party software notices'}</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 opacity-40" />
@@ -4282,9 +4744,11 @@ function AboutPage({
 
       {/* Legal Footer Info */}
       <div className="mt-8 text-center flex flex-col gap-2">
-        <p className={`text-xs ${mutedClass}`}>Copyright © 2026 Vellium. Tüm hakları saklıdır.</p>
+        <p className={`text-xs ${mutedClass}`}>{lang === 'tr' ? 'Copyright © 2026 Vellium. Tüm hakları saklıdır.' : 'Copyright © 2026 Vellium. All rights reserved.'}</p>
         <p className={`text-[10px] leading-relaxed max-w-md ${mutedClass} opacity-60`}>
-          Velox tescilli bir yazılımdır. İzinsiz kopyalanması, dağıtılması veya tersine mühendislik yapılması kesinlikle yasaktır.
+          {lang === 'tr'
+            ? 'Velox tescilli bir yazılımdır. İzinsiz kopyalanması, dağıtılması veya tersine mühendislik yapılması kesinlikle yasaktır.'
+            : 'Velox is a proprietary software. Unauthorized copying, distribution, or reverse engineering is strictly prohibited.'}
         </p>
       </div>
 
@@ -4318,12 +4782,13 @@ function LegalModal({
   titleClass: string;
   mutedClass: string;
 }) {
+  const { lang } = useTranslation();
   const getModalData = () => {
     switch (type) {
       case 'eula':
         return {
-          title: 'Kullanım Koşulları (EULA)',
-          content: `VELOX - SON KULLANICI LİSANS SÖZLEŞMESİ (EULA)
+          title: lang === 'tr' ? 'Kullanım Koşulları (EULA)' : 'Terms of Use (EULA)',
+          content: lang === 'tr' ? `VELOX - SON KULLANICI LİSANS SÖZLEŞMESİ (EULA)
 
 Son Güncelleme: 04 Temmuz 2026
 
@@ -4340,11 +4805,28 @@ Yazılım "olduğu gibi" ve "kullanılabilir olduğu sürece" esasıyla sunulmak
 
 4. İPTAL VE FESİH
 Bu sözleşme, yazılımı cihazınızdan kaldırana kadar geçerlidir. Sözleşme koşullarına aykırı hareket edilmesi durumunda lisansınız Vellium tarafından tek taraflı olarak feshedilebilir.`
+          : `VELOX - END USER LICENSE AGREEMENT (EULA)
+
+Last Updated: July 04, 2026
+
+This End User License Agreement ("Agreement") is a legal agreement between you ("User") and Vellium for the Velox software ("Software") developed by Vellium.
+
+1. LICENSE GRANT
+Vellium grants you a non-exclusive, non-transferable, limited license to use this Software for personal or commercial use in accordance with the terms of this Agreement.
+
+2. OWNERSHIP AND INTELLECTUAL PROPERTY
+All copyrights, trademarks, intellectual property and patent rights of the Software belong to Vellium. The Software is licensed, not sold. Copying, reverse engineering, decompiling or unauthorized distribution of codes is strictly prohibited.
+
+3. QUALITY OF SERVICE AND LIMITATION OF LIABILITY
+The Software is provided on an "as is" and "as available" basis. Vellium does not guarantee that the software will run error-free. Summaries, conceptual content and questions generated by the AI module (Gemini API integration) are for informational purposes and cannot be cited in final legal or professional decisions; all responsibility belongs to the user.
+
+4. CANCELLATION AND TERMINATION
+This agreement is valid until you remove the software from your device. In case of violation of the Agreement terms, your license may be unilaterally terminated by Vellium.`
         };
       case 'privacy':
         return {
-          title: 'Gizlilik Politikası',
-          content: `VELOX - GİZLİLİK POLİTİKASI
+          title: lang === 'tr' ? 'Gizlilik Politikası' : 'Privacy Policy',
+          content: lang === 'tr' ? `VELOX - GİZLİLİK POLİTİKASI
 
 Son Güncelleme: 04 Temmuz 2026
 
@@ -4361,11 +4843,28 @@ Velox, hiçbir kullanıcı takip kütüphanesi, analiz aracı (analytics) veya r
 
 4. BİZE ULAŞIN
 Gizlilik politikamızla ilgili sorularınız için vellium.dev web sitesi üzerinden bizimle iletişime geçebilirsiniz.`
+          : `VELOX - PRIVACY POLICY
+
+Last Updated: July 04, 2026
+
+At Velox, we highly respect your privacy. This policy explains how your data is managed when you use our application.
+
+1. LOCAL-FIRST DATA STORAGE
+All documents you add to the application, notes you write, reading durations, speed statistics and preferences are stored entirely in your device's local storage (on IndexedDB and localStorage). No documents or note content are sent or stored on our servers.
+
+2. AI SERVICES AND API USAGE
+AI analysis tools (Summary, Difficulty Analysis, Dictionary and Question Actions) are optional. When you configure an AI provider (Gemini, OpenAI, Claude or Local Model), requests are sent to the provider's API endpoints to analyze the selected document. These requests are made via fully encrypted HTTPS channels. Sent data is not saved by Vellium or Velox.
+
+3. THIRD PARTY SERVICES AND COOKIES
+Velox does not contain any user tracking libraries, analytics tools or ad trackers. It is a completely clean and tracker-free local desktop application.
+
+4. CONTACT US
+For questions about our privacy policy, you can contact us via the vellium.dev website.`
         };
       case 'licenses':
         return {
-          title: 'Açık Kaynak Lisansları',
-          content: `VELOX - ÜÇÜNCÜ PARTİ YAZILIM BİLDİRİMLERİ
+          title: lang === 'tr' ? 'Açık Kaynak Lisansları' : 'Open Source Licenses',
+          content: lang === 'tr' ? `VELOX - ÜÇÜNCÜ PARTİ YAZILIM BİLDİRİMLERİ
 
 Velox, aşağıdaki açık kaynak kodlu kütüphaneleri ve yazılımları kullanmaktadır. Katkılarından dolayı tüm geliştiricilere teşekkür ederiz.
 
@@ -4391,6 +4890,33 @@ Copyright © 2009-2016 Stuart Knightley.
 Copyright © 2018 Framer B.V.
 
 8. Vite (MIT Lisansı)
+Copyright © 2019-present, Ygritte and Vite contributors.`
+          : `VELOX - THIRD PARTY SOFTWARE NOTICES
+
+Velox uses the following open source libraries and software. We thank all developers for their contributions.
+
+1. React (MIT License)
+Copyright © Meta Platforms, Inc. and affiliates.
+
+2. Zustand (MIT License)
+Copyright © 2019-2024 Daishi Kato.
+
+3. Recharts (MIT License)
+Copyright © 2015-present Recharts Group.
+
+4. Lucide React (ISC License)
+Copyright © 2020 lucide-react contributors.
+
+5. Mammoth (BSD 2-Clause License)
+Copyright © 2012-2024 Michael Stephens.
+
+6. JSZip (MIT License)
+Copyright © 2009-2016 Stuart Knightley.
+
+7. Motion (MIT License)
+Copyright © 2018 Framer B.V.
+
+8. Vite (MIT License)
 Copyright © 2019-present, Ygritte and Vite contributors.`
         };
     }
@@ -4425,7 +4951,7 @@ Copyright © 2019-present, Ygritte and Vite contributors.`
             onClick={onClose}
             className="h-10 px-5 rounded-xl bg-indigo-600 text-white text-xs font-black"
           >
-            Kapat
+            {lang === 'tr' ? 'Kapat' : 'Close'}
           </button>
         </div>
       </div>
@@ -4434,6 +4960,7 @@ Copyright © 2019-present, Ygritte and Vite contributors.`
 }
 
 function CustomDialog({ config, onClose, surfaceClass, titleClass, mutedClass, isLightTheme }: any) {
+  const { lang } = useTranslation();
   if (!config || !config.isOpen) return null;
 
   return (
@@ -4457,7 +4984,7 @@ function CustomDialog({ config, onClose, surfaceClass, titleClass, mutedClass, i
                   : 'border-zinc-800 bg-transparent hover:bg-zinc-900/50 text-zinc-300'
               }`}
             >
-              İptal
+              {lang === 'tr' ? 'İptal' : 'Cancel'}
             </button>
           )}
           <button
@@ -4467,7 +4994,7 @@ function CustomDialog({ config, onClose, surfaceClass, titleClass, mutedClass, i
             }}
             className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all shadow-lg shadow-indigo-600/20"
           >
-            {config.type === 'confirm' ? 'Onayla' : 'Tamam'}
+            {config.type === 'confirm' ? (lang === 'tr' ? 'Onayla' : 'Confirm') : (lang === 'tr' ? 'Tamam' : 'OK')}
           </button>
         </div>
       </div>
@@ -4485,11 +5012,15 @@ function SearchableBookSelect({
   mutedClass,
   titleClass
 }: any) {
+  const { lang } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedBook = books.find((b: any) => b.id === selectedBookId);
+  const localizedSelectedBook = selectedBook && selectedBook.id === 'sample-welcome' && lang !== 'tr'
+    ? { ...selectedBook, title: 'Velox Speed Reading Guide' }
+    : selectedBook;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -4502,7 +5033,7 @@ function SearchableBookSelect({
   }, []);
 
   const filteredBooks = books.filter((b: any) =>
-    b.title.toLowerCase().includes(searchQuery.toLowerCase())
+    (b.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : b.title).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -4516,7 +5047,7 @@ function SearchableBookSelect({
             : 'border-zinc-800 bg-zinc-950 text-zinc-100 hover:bg-zinc-900/20'
         }`}
       >
-        <span className="truncate pr-2">{selectedBook ? selectedBook.title : 'Metin Seçilmedi'}</span>
+        <span className="truncate pr-2">{localizedSelectedBook ? (localizedSelectedBook.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : localizedSelectedBook.title) : (lang === 'tr' ? 'Metin Seçilmedi' : 'No text selected')}</span>
         <ChevronDown className={`w-4 h-4 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -4536,7 +5067,7 @@ function SearchableBookSelect({
               autoFocus
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Belge adıyla ara..."
+              placeholder={lang === 'tr' ? 'Belge adıyla ara...' : 'Search by document name...'}
               className={`w-full h-9 pl-8 pr-3 rounded-xl border text-xs outline-none focus:border-indigo-500 ${
                 isLightTheme 
                   ? 'border-stone-200 bg-stone-50 text-stone-900' 
@@ -4548,7 +5079,7 @@ function SearchableBookSelect({
           {/* List */}
           <div className="flex-1 overflow-y-auto custom-note-scrollbar flex flex-col gap-1 pr-1">
             {filteredBooks.length === 0 ? (
-              <span className={`text-[11px] p-2 text-center ${mutedClass}`}>Metin bulunamadı</span>
+              <span className={`text-[11px] p-2 text-center ${mutedClass}`}>{lang === 'tr' ? 'Metin bulunamadı' : 'No text found'}</span>
             ) : (
               filteredBooks.map((b: any) => {
                 const isSelected = b.id === selectedBookId;
@@ -4568,7 +5099,7 @@ function SearchableBookSelect({
                         : 'hover:bg-zinc-900 text-zinc-200'
                     }`}
                   >
-                    {b.title}
+                    {b.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : b.title}
                   </button>
                 );
               })
@@ -4604,6 +5135,7 @@ function RecallQuizPage({
   const [editingQuiz, setEditingQuiz] = useState<any | null>(null);
   const [editingDesteBookId, setEditingDesteBookId] = useState<string | null>(null);
   const [selectedBookId, setSelectedBookId] = useState<string>('');
+  const { t, lang } = useTranslation();
   
   // Quiz Builder / Active Exam States
   const [quizData, setQuizData] = useState<any>(null);
@@ -5001,10 +5533,10 @@ function RecallQuizPage({
   };
 
   const handleClearHistory = () => {
-    showConfirm('Sınav geçmişinizi tamamen temizlemek istiyor musunuz?', () => {
+    showConfirm(t('quiz_clear_confirm'), () => {
       setQuizHistory([]);
       localStorage.removeItem('velox_quiz_history');
-    }, 'Geçmişi Temizle');
+    }, t('quiz_clear_confirm_title'));
   };
 
   const handleDeleteHistoryItem = (id: string, e: React.MouseEvent) => {
@@ -5347,29 +5879,31 @@ function RecallQuizPage({
       {/* Active Exam Header */}
       <div className="flex justify-between items-start gap-4 border-b border-stone-200 dark:border-zinc-800/60 pb-4">
         <div>
-          <h3 className={`text-base font-black ${titleClass}`}>{selectedBook?.title} - Kavrama Sınavı</h3>
-          <p className={`text-xs mt-1 ${mutedClass}`}>Yapay zeka tarafından üretilen spaced-repetition hatırlama testi.</p>
+          <h3 className={`text-base font-black ${titleClass}`}>
+            {selectedBook?.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : selectedBook?.title} - {lang === 'tr' ? 'Kavrama Sınavı' : 'Comprehension Quiz'}
+          </h3>
+          <p className={`text-xs mt-1 ${mutedClass}`}>{lang === 'tr' ? 'Yapay zeka tarafından üretilen spaced-repetition hatırlama testi.' : 'Spaced-repetition recall test generated by AI.'}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => setIsFocusMode(!isFocusMode)}
-            title={isFocusMode ? 'Odak Modundan Çık' : 'Odak Moduna Geç'}
+            title={isFocusMode ? (lang === 'tr' ? 'Odak Modundan Çık' : 'Exit Focus Mode') : (lang === 'tr' ? 'Odak Moduna Geç' : 'Enter Focus Mode')}
             className={`p-2 rounded-xl border transition-all ${isLightTheme ? 'border-stone-250 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-800 bg-transparent text-zinc-300 hover:bg-zinc-900/50'}`}
           >
             {isFocusMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
           <button
             onClick={() => {
-              showConfirm('Mevcut aktif sınavı kapatmak ve sıfırlamak istiyor musunuz?', () => {
+              showConfirm(lang === 'tr' ? 'Mevcut aktif sınavı kapatmak ve sıfırlamak istiyor musunuz?' : 'Do you want to close and reset the current active exam?', () => {
                 setQuizData(null);
                 setUserAnswers({});
                 setIsFinished(false);
                 localStorage.removeItem(`velox_quiz_data_${selectedBookId}`);
                 localStorage.removeItem(`velox_quiz_answers_${selectedBookId}`);
                 localStorage.removeItem(`velox_quiz_finished_${selectedBookId}`);
-              }, 'Sınavı Kapat');
+              }, lang === 'tr' ? 'Sınavı Kapat' : 'Close Exam');
             }}
-            title="Sınavı Kapat"
+            title={lang === 'tr' ? 'Sınavı Kapat' : 'Close Exam'}
             className={`p-2 rounded-xl border transition-all ${isLightTheme ? 'border-stone-250 bg-white text-rose-600 hover:bg-rose-50/50' : 'border-zinc-800 bg-transparent text-rose-500 hover:bg-rose-500/10'}`}
           >
             <X className="w-4 h-4" />
@@ -5379,7 +5913,7 @@ function RecallQuizPage({
               onClick={handleResetQuiz}
               className="h-9 px-3 rounded-xl bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600/20 text-xs font-bold transition-all flex items-center gap-1.5"
             >
-              <RotateCcw className="w-3.5 h-3.5" /> Tekrar Çöz
+              <RotateCcw className="w-3.5 h-3.5" /> {lang === 'tr' ? 'Tekrar Çöz' : 'Solve Again'}
             </button>
           )}
         </div>
@@ -5396,14 +5930,14 @@ function RecallQuizPage({
       {isBusy ? (
         <div className="py-16 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-          <p className={`text-xs ${mutedClass}`}>Yapay Zeka Soruları Hazırlanıyor...</p>
+          <p className={`text-xs ${mutedClass}`}>{lang === 'tr' ? 'Yapay Zeka Soruları Hazırlanıyor...' : 'Preparing AI Questions...'}</p>
         </div>
       ) : quizData ? (
         <div className="flex flex-col gap-6">
           {/* Difficulty rating badge */}
           {quizData.difficultyRating && (
             <div className="flex items-center gap-2 text-xs">
-              <span className={mutedClass}>Metin Kavrama Puanı:</span>
+              <span className={mutedClass}>{lang === 'tr' ? 'Metin Kavrama Puanı:' : 'Text Comprehension Score:'}</span>
               <span className="font-extrabold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-lg border border-indigo-500/20">{quizData.difficultyRating} / 100</span>
             </div>
           )}
@@ -5449,8 +5983,8 @@ function RecallQuizPage({
                         className={`w-full py-3 px-4 rounded-xl border text-xs text-left transition-all flex items-center justify-between ${optStyle}`}
                       >
                         <span>{opt}</span>
-                        {isFinished && isCorrect && <span className="text-emerald-500 font-extrabold text-[10px] uppercase">Doğru</span>}
-                        {isFinished && isSelected && !isCorrect && <span className="text-rose-500 font-extrabold text-[10px] uppercase">Yanlış</span>}
+                        {isFinished && isCorrect && <span className="text-emerald-500 font-extrabold text-[10px] uppercase">{lang === 'tr' ? 'Doğru' : 'Correct'}</span>}
+                        {isFinished && isSelected && !isCorrect && <span className="text-rose-500 font-extrabold text-[10px] uppercase">{lang === 'tr' ? 'Yanlış' : 'Incorrect'}</span>}
                       </button>
                     );
                   })}
@@ -5459,7 +5993,7 @@ function RecallQuizPage({
                 {/* Explanation */}
                 {isFinished && q.explanation && (
                   <div className="p-3.5 rounded-xl bg-stone-100/70 dark:bg-zinc-900/60 border border-stone-200/50 dark:border-zinc-850/50 text-[11px] leading-relaxed opacity-90">
-                    <span className="font-bold text-indigo-500 block mb-1">💡 Açıklama:</span>
+                    <span className="font-bold text-indigo-500 block mb-1">{lang === 'tr' ? '💡 Açıklama:' : '💡 Explanation:'}</span>
                     {q.explanation}
                   </div>
                 )}
@@ -5474,7 +6008,7 @@ function RecallQuizPage({
                 onClick={handleFinishQuiz}
                 className="h-10 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all shadow-lg shadow-indigo-600/20"
               >
-                Sınavı Bitir
+                {lang === 'tr' ? 'Sınavı Bitir' : 'Finish Quiz'}
               </button>
             ) : (
               <>
@@ -5482,13 +6016,13 @@ function RecallQuizPage({
                   onClick={() => setShowResultModal(true)}
                   className="h-10 px-5 rounded-xl bg-indigo-600 text-white text-xs font-black transition-all flex items-center gap-1.5"
                 >
-                  <Eye className="w-4 h-4" /> Sonuçları Göster
+                  <Eye className="w-4 h-4" /> {lang === 'tr' ? 'Sonuçları Göster' : 'Show Results'}
                 </button>
                 <button
                   onClick={handleResetQuiz}
                   className={`h-10 px-5 rounded-xl border text-xs font-bold transition-all ${isLightTheme ? 'border-stone-250 bg-white hover:bg-stone-50 text-stone-700' : 'border-zinc-800 bg-transparent hover:bg-zinc-900/50 text-zinc-300'}`}
                 >
-                  Sınavı Yeniden Başlat
+                  {lang === 'tr' ? 'Sınavı Yeniden Başlat' : 'Restart Quiz'}
                 </button>
               </>
             )}
@@ -5500,9 +6034,9 @@ function RecallQuizPage({
             <Brain className="w-8 h-8 text-indigo-500" />
           </div>
           <div>
-            <h4 className={`text-base font-black ${titleClass}`}>Henüz Sınav Tasarlanmadı</h4>
+            <h4 className={`text-base font-black ${titleClass}`}>{lang === 'tr' ? 'Henüz Sınav Tasarlanmadı' : 'No Exam Designed Yet'}</h4>
             <p className={`text-xs mt-1.5 max-w-sm leading-relaxed ${mutedClass}`}>
-              Sol paneldeki kriterlerinizi belirleyin ve ilk yapay zeka sınavınızı tasarlayın!
+              {lang === 'tr' ? 'Sol paneldeki kriterlerinizi belirleyin ve ilk yapay zeka sınavınızı tasarlayın!' : 'Determine your criteria in the left panel and design your first AI exam!'}
             </p>
           </div>
         </div>
@@ -5562,11 +6096,11 @@ function RecallQuizPage({
       {/* Top Professional Pill Nav Menu */}
       <div className="flex flex-wrap gap-2 border-b border-stone-200 dark:border-zinc-900 pb-4">
         {[
-          { id: 'quiz-builder', label: 'Ölçme ve Değerlendirme', icon: FileQuestion },
-          { id: 'quiz-library', label: 'Sınav Kütüphanesi', icon: Layers },
-          { id: 'flashcards', label: 'Akıllı Bilgi Kartları', icon: Bookmark },
-          { id: 'flashcards-library', label: 'Kart Kütüphanesi', icon: LibraryBig },
-          { id: 'flashcards-manager', label: 'Hafıza Laboratuvarı', icon: ListPlus }
+          { id: 'quiz-builder', label: lang === 'tr' ? 'Ölçme ve Değerlendirme' : 'Evaluation & Assessment', icon: FileQuestion },
+          { id: 'quiz-library', label: lang === 'tr' ? 'Sınav Kütüphanesi' : 'Quiz Library', icon: Layers },
+          { id: 'flashcards', label: lang === 'tr' ? 'Akıllı Bilgi Kartları' : 'Smart Flashcards', icon: Bookmark },
+          { id: 'flashcards-library', label: lang === 'tr' ? 'Kart Kütüphanesi' : 'Card Library', icon: LibraryBig },
+          { id: 'flashcards-manager', label: lang === 'tr' ? 'Hafıza Laboratuvarı' : 'Memory Lab', icon: ListPlus }
         ].map((tab) => {
           const isActive = subTab === tab.id;
           const IconComp = tab.icon;
@@ -5595,9 +6129,9 @@ function RecallQuizPage({
           {/* Left panel options */}
           <div className="flex flex-col gap-4">
             <div className={`p-5 rounded-3xl border ${surfaceClass}`}>
-              <label className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>METİN SEÇİN</label>
+              <label className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'METİN SEÇİN' : 'SELECT TEXT'}</label>
               {books.length === 0 ? (
-                <p className="text-xs mt-2 opacity-60">Kütüphanede hiç belge bulunmuyor.</p>
+                <p className="text-xs mt-2 opacity-60">{lang === 'tr' ? 'Kütüphanede hiç belge bulunmuyor.' : 'No documents in the library.'}</p>
               ) : (
                 <SearchableBookSelect
                   books={books}
@@ -5613,10 +6147,10 @@ function RecallQuizPage({
 
             {/* Custom parameters */}
             <div className={`p-5 rounded-3xl border ${surfaceClass} flex flex-col gap-4`}>
-              <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>SINAV HEDEFLERİ</span>
+              <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'SINAV HEDEFLERİ' : 'EXAM GOALS'}</span>
               
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] opacity-70">Soru Sayısı</label>
+                <label className="text-[11px] opacity-70">{lang === 'tr' ? 'Soru Sayısı' : 'Number of Questions'}</label>
                 <input
                   type="number"
                   min={1}
@@ -5628,38 +6162,38 @@ function RecallQuizPage({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] opacity-70">Zorluk Seviyesi</label>
+                <label className="text-[11px] opacity-70">{lang === 'tr' ? 'Zorluk Seviyesi' : 'Difficulty Level'}</label>
                 <select
                   value={difficulty}
                   onChange={(e) => setDifficulty(e.target.value)}
                   className={`w-full h-10 px-3 rounded-xl border text-xs font-bold focus:outline-none focus:border-indigo-500 ${isLightTheme ? 'border-stone-200 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950 text-zinc-100'}`}
                 >
-                  <option value="Kolay">Kolay</option>
-                  <option value="Orta">Orta</option>
-                  <option value="Zor">Zor</option>
+                  <option value="Kolay">{lang === 'tr' ? 'Kolay' : 'Easy'}</option>
+                  <option value="Orta">{lang === 'tr' ? 'Orta' : 'Medium'}</option>
+                  <option value="Zor">{lang === 'tr' ? 'Zor' : 'Hard'}</option>
                 </select>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] opacity-70">Sınav Tarzı & Şablonu</label>
+                <label className="text-[11px] opacity-70">{lang === 'tr' ? 'Sınav Tarzı & Şablonu' : 'Exam Style & Template'}</label>
                 <select
                   value={quizType}
                   onChange={(e) => setQuizType(e.target.value)}
                   className={`w-full h-10 px-3 rounded-xl border text-xs font-bold focus:outline-none focus:border-indigo-500 ${isLightTheme ? 'border-stone-200 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950 text-zinc-100'}`}
                 >
-                  <option value="Bilgi Soruları">Bilgi Soruları (Olgu ve Kavramlar)</option>
-                  <option value="Yorum Soruları">Yorum Soruları (Analiz ve Çıkarım)</option>
-                  <option value="Teknik Terimler">Teknik Terimler (Tanım ve Glosaryum)</option>
-                  <option value="Özel Tarz">Kişiselleştirilmiş Yapay Zeka Komutu</option>
+                  <option value="Bilgi Soruları">{lang === 'tr' ? 'Bilgi Soruları (Olgu ve Kavramlar)' : 'Knowledge Questions (Fact and Concepts)'}</option>
+                  <option value="Yorum Soruları">{lang === 'tr' ? 'Yorum Soruları (Analiz ve Çıkarım)' : 'Interpretation Questions (Analysis and Inference)'}</option>
+                  <option value="Teknik Terimler">{lang === 'tr' ? 'Teknik Terimler (Tanım ve Glosaryum)' : 'Technical Terms (Definitions and Glossary)'}</option>
+                  <option value="Özel Tarz">{lang === 'tr' ? 'Kişiselleştirilmiş Yapay Zeka Komutu' : 'Custom AI Command'}</option>
                 </select>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] opacity-70">Özel Yönlendirme (İsteğe Bağlı)</label>
+                <label className="text-[11px] opacity-70">{lang === 'tr' ? 'Özel Yönlendirme (İsteğe Bağlı)' : 'Custom Instructions (Optional)'}</label>
                 <textarea
                   value={customInstructions}
                   onChange={(e) => setCustomInstructions(e.target.value)}
-                  placeholder="Örn: Metindeki temel kavramları sor, ana fikre odaklan veya sadece belirli bölümlere yönelik sorular üret..."
+                  placeholder={lang === 'tr' ? 'Örn: Metindeki temel kavramları ask, ana fikre odaklan veya sadece belirli bölümlere yönelik sorular üret...' : 'E.g., ask key concepts in the text, focus on the main idea, or generate questions only for specific sections...'}
                   className={`w-full h-20 p-2.5 rounded-xl border text-xs leading-relaxed resize-none focus:outline-none focus:border-indigo-500 ${isLightTheme ? 'border-stone-200 bg-white text-stone-900' : 'border-zinc-850 bg-zinc-950 text-zinc-100'}`}
                 />
               </div>
@@ -5669,7 +6203,7 @@ function RecallQuizPage({
                 disabled={isBusy}
                 className="h-10 w-full mt-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all shadow-lg shadow-indigo-600/20"
               >
-                {isBusy ? 'Sınav Hazırlanıyor...' : 'Yapay Zeka Sınavı Tasarla'}
+                {isBusy ? (lang === 'tr' ? 'Sınav Hazırlanıyor...' : 'Preparing Exam...') : (lang === 'tr' ? 'Yapay Zeka Sınavı Tasarla' : 'Design AI Exam')}
               </button>
             </div>
           </div>
@@ -5692,10 +6226,10 @@ function RecallQuizPage({
           {/* Saved Quizzes Column */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className={`p-6 rounded-3xl border ${surfaceClass}`}>
-              <h3 className={`text-base font-black ${titleClass} mb-4`}>Kayıtlı Sınavlar ({savedQuizzes.length})</h3>
+              <h3 className={`text-base font-black ${titleClass} mb-4`}>{lang === 'tr' ? 'Kayıtlı Sınavlar' : 'Saved Quizzes'} ({savedQuizzes.length})</h3>
               {savedQuizzes.length === 0 ? (
                 <div className="py-12 text-center">
-                  <p className="text-xs opacity-60">Kütüphanede kayıtlı sınav bulunmuyor.</p>
+                  <p className="text-xs opacity-60">{lang === 'tr' ? 'Kütüphanede kayıtlı sınav bulunmuyor.' : 'No quizzes saved in the library.'}</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
@@ -5708,11 +6242,13 @@ function RecallQuizPage({
                     >
                       <div className="flex justify-between items-start gap-4">
                         <div>
-                          <h4 className={`text-sm font-black ${titleClass}`}>{quiz.bookTitle}</h4>
-                          <span className={`text-[10px] block mt-0.5 ${mutedClass}`}>Oluşturulma: {quiz.createdAt}</span>
+                          <h4 className={`text-sm font-black ${titleClass}`}>
+                            {quiz.bookTitle === 'Velox okuma rehberi' && lang !== 'tr' ? 'Velox Speed Reading Guide' : quiz.bookTitle}
+                          </h4>
+                          <span className={`text-[10px] block mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'Oluşturulma:' : 'Created:'} {quiz.createdAt}</span>
                         </div>
                         <span className="text-[10px] font-extrabold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-lg">
-                          {quiz.questionCount} Soru | {quiz.difficulty}
+                          {(lang === 'tr' ? `${quiz.questionCount} Soru` : `${quiz.questionCount} ${quiz.questionCount === 1 ? 'Question' : 'Questions'}`) + ' | ' + (lang === 'tr' ? quiz.difficulty : (quiz.difficulty === 'Kolay' ? 'Easy' : quiz.difficulty === 'Orta' ? 'Medium' : 'Hard'))}
                         </span>
                       </div>
 
@@ -5727,7 +6263,7 @@ function RecallQuizPage({
                                 isLightTheme ? 'border-stone-250 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-850 bg-transparent text-zinc-300 hover:bg-zinc-900/50'
                               }`}
                             >
-                              <Download className="w-3.5 h-3.5" /> Dışa Aktar
+                              <Download className="w-3.5 h-3.5" /> {lang === 'tr' ? 'Dışa Aktar' : 'Export'}
                             </button>
 
                             {activeExportQuizId === quiz.id && (
@@ -5735,10 +6271,10 @@ function RecallQuizPage({
                                 isLightTheme ? 'border-stone-200 bg-white' : 'border-zinc-850 bg-zinc-950'
                               }`}>
                                 {[
-                                  { format: 'txt', label: 'TXT Dosyası (.txt)' },
+                                  { format: 'txt', label: lang === 'tr' ? 'TXT Dosyası (.txt)' : 'TXT File (.txt)' },
                                   { format: 'md', label: 'Markdown (.md)' },
-                                  { format: 'html', label: 'HTML Sayfası (.html)' },
-                                  { format: 'doc', label: 'Word Belgesi (.doc)' }
+                                  { format: 'html', label: lang === 'tr' ? 'HTML Sayfası (.html)' : 'HTML Page (.html)' },
+                                  { format: 'doc', label: lang === 'tr' ? 'Word Belgesi (.doc)' : 'Word Document (.doc)' }
                                 ].map((opt) => (
                                   <button
                                     key={opt.format}
@@ -5763,14 +6299,14 @@ function RecallQuizPage({
                               isLightTheme ? 'border-stone-250 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-850 bg-transparent text-zinc-300 hover:bg-zinc-900/50'
                             }`}
                           >
-                            Yazdır / PDF
+                            {lang === 'tr' ? 'Yazdır / PDF' : 'Print / PDF'}
                           </button>
 
                           <button
                             onClick={() => handleExportAnswerKey(quiz)}
                             className="h-8 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black hover:bg-emerald-500/20 flex items-center gap-1"
                           >
-                            Cevap Anahtarı
+                            {lang === 'tr' ? 'Cevap Anahtarı' : 'Answer Key'}
                           </button>
                         </div>
 
@@ -5780,7 +6316,7 @@ function RecallQuizPage({
                             className={`h-8 w-8 rounded-lg border text-indigo-500 hover:bg-indigo-50/25 grid place-items-center transition-all ${
                               isLightTheme ? 'border-stone-250 bg-white' : 'border-zinc-800 bg-transparent'
                             }`}
-                            title="Sınav Sorularını Düzenle"
+                            title={lang === 'tr' ? 'Sınav Sorularını Düzenle' : 'Edit Quiz Questions'}
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
@@ -5788,7 +6324,7 @@ function RecallQuizPage({
                             onClick={() => handleLoadSavedQuiz(quiz)}
                             className="h-8 px-3.5 rounded-lg bg-indigo-600 text-white text-[10px] font-black hover:bg-indigo-700"
                           >
-                            Sınavı Çöz
+                            {lang === 'tr' ? 'Sınavı Çöz' : 'Solve Quiz'}
                           </button>
                           <button
                             onClick={(e) => handleDeleteSavedQuiz(quiz.id, e)}
@@ -5809,18 +6345,18 @@ function RecallQuizPage({
           <div className="flex flex-col gap-4">
             <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-3`}>
               <div className="flex justify-between items-center border-b border-stone-200 dark:border-zinc-800/60 pb-2">
-                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>SINAV SONUCU GEÇMİŞİ</span>
+                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'SINAV SONUCU GEÇMİŞİ' : 'QUIZ SCORE HISTORY'}</span>
                 {quizHistory.length > 0 && (
                   <button
                     onClick={handleClearHistory}
                     className="text-[10px] text-rose-500 hover:underline font-bold"
                   >
-                    Temizle
+                    {lang === 'tr' ? 'Temizle' : 'Clear'}
                   </button>
                 )}
               </div>
               {quizHistory.length === 0 ? (
-                <p className="text-xs opacity-60 py-2">Henüz girilmiş sınav sonucu bulunmuyor.</p>
+                <p className="text-xs opacity-60 py-2">{lang === 'tr' ? 'Henüz girilmiş sınav sonucu bulunmuyor.' : 'No quiz score logs found yet.'}</p>
               ) : (
                 <div className="flex flex-col gap-2 max-h-[460px] overflow-y-auto custom-note-scrollbar pr-1">
                   {quizHistory.map((item) => (
@@ -5831,17 +6367,21 @@ function RecallQuizPage({
                       }`}
                     >
                       <div className="flex justify-between items-start pr-5">
-                        <span className={`text-xs font-black truncate max-w-[140px] ${titleClass}`}>{item.bookTitle}</span>
+                        <span className={`text-xs font-black truncate max-w-[140px] ${titleClass}`}>
+                          {item.bookTitle === 'Velox okuma rehberi' && lang !== 'tr' ? 'Velox Speed Reading Guide' : item.bookTitle}
+                        </span>
                         <span className="text-[10px] font-extrabold text-indigo-500">%{item.score}</span>
                       </div>
                       <div className="flex justify-between items-center text-[9px] opacity-60">
                         <span>{item.date.split(' ')[0]}</span>
-                        <span>D: {item.correctCount} | Y: {item.wrongCount} | Z: {item.difficulty}</span>
+                        <span>
+                          {lang === 'tr' ? 'D' : 'C'}: {item.correctCount} | {lang === 'tr' ? 'Y' : 'I'}: {item.wrongCount} | {lang === 'tr' ? 'Z' : 'D'}: {item.difficulty === 'Kolay' ? (lang === 'tr' ? 'Kolay' : 'Easy') : item.difficulty === 'Orta' ? (lang === 'tr' ? 'Orta' : 'Medium') : (lang === 'tr' ? 'Zor' : 'Hard')}
+                        </span>
                       </div>
                       <button
                         onClick={(e) => handleDeleteHistoryItem(item.id, e)}
                         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-rose-500 hover:text-rose-600"
-                        title="Sil"
+                        title={lang === 'tr' ? 'Sil' : 'Delete'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -5859,10 +6399,10 @@ function RecallQuizPage({
           {/* Saved Flashcard sets Column */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className={`p-6 rounded-3xl border ${surfaceClass}`}>
-              <h3 className={`text-base font-black ${titleClass} mb-4`}>Kayıtlı Bilgi Kartı Desteleri ({books.filter(b => flashcards.some(c => c.bookId === b.id)).length})</h3>
+              <h3 className={`text-base font-black ${titleClass} mb-4`}>{t('fc_library_saved_decks' as any)} ({books.filter(b => flashcards.some(c => c.bookId === b.id)).length})</h3>
               {books.filter(b => flashcards.some(c => c.bookId === b.id)).length === 0 ? (
                 <div className="py-12 text-center">
-                  <p className="text-xs opacity-60">Kütüphanede kayıtlı bilgi kartı destesi bulunmuyor.</p>
+                  <p className="text-xs opacity-60">{t('fc_library_no_decks' as any)}</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
@@ -5877,8 +6417,12 @@ function RecallQuizPage({
                       >
                         <div className="flex justify-between items-start gap-4">
                           <div>
-                            <h4 className={`text-sm font-black ${titleClass}`}>{book.title}</h4>
-                            <span className={`text-[10px] block mt-0.5 ${mutedClass}`}>Toplam: {bookCards.length} Bilgi Kartı</span>
+                            <h4 className={`text-sm font-black ${titleClass}`}>
+                              {book.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : book.title}
+                            </h4>
+                            <span className={`text-[10px] block mt-0.5 ${mutedClass}`}>
+                              {t('fc_library_total_cards' as any)}: {bookCards.length} {bookCards.length === 1 ? t('fc_library_card_singular' as any) : t('fc_library_card_plural' as any)}
+                            </span>
                           </div>
                         </div>
 
@@ -5893,7 +6437,7 @@ function RecallQuizPage({
                                   isLightTheme ? 'border-stone-250 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-850 bg-transparent text-zinc-300 hover:bg-zinc-900/50'
                                 }`}
                               >
-                                <Download className="w-3.5 h-3.5" /> Dışa Aktar
+                                <Download className="w-3.5 h-3.5" /> {t('quiz_export' as any)}
                               </button>
 
                               {activeExportDesteId === book.id && (
@@ -5901,10 +6445,10 @@ function RecallQuizPage({
                                   isLightTheme ? 'border-stone-200 bg-white' : 'border-zinc-850 bg-zinc-950'
                                 }`}>
                                   {[
-                                    { format: 'txt', label: 'TXT Dosyası (.txt)' },
+                                    { format: 'txt', label: lang === 'tr' ? 'TXT Dosyası (.txt)' : 'TXT File (.txt)' },
                                     { format: 'md', label: 'Markdown (.md)' },
-                                    { format: 'html', label: 'HTML Sayfası (.html)' },
-                                    { format: 'doc', label: 'Word Belgesi (.doc)' }
+                                    { format: 'html', label: lang === 'tr' ? 'HTML Sayfası (.html)' : 'HTML Page (.html)' },
+                                    { format: 'doc', label: lang === 'tr' ? 'Word Belgesi (.doc)' : 'Word Document (.doc)' }
                                   ].map((opt) => (
                                     <button
                                       key={opt.format}
@@ -5930,7 +6474,7 @@ function RecallQuizPage({
                               className={`h-8 w-8 rounded-lg border text-indigo-500 hover:bg-indigo-50/25 grid place-items-center transition-all ${
                                 isLightTheme ? 'border-stone-250 bg-white' : 'border-zinc-800 bg-transparent'
                               }`}
-                              title="Destedeki Kartları Düzenle"
+                              title={t('fc_library_edit_tooltip' as any)}
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </button>
@@ -5941,17 +6485,17 @@ function RecallQuizPage({
                               }}
                               className="h-8 px-4 rounded-lg bg-indigo-600 text-white text-[10px] font-black hover:bg-indigo-700"
                             >
-                              Çalışmaya Başla
+                              {t('fc_library_start_study' as any)}
                             </button>
                             <button
                               onClick={() => {
-                                showConfirm('Bu belgedeki tüm bilgi kartlarını silmek istiyor musunuz?', () => {
+                                showConfirm(t('fc_library_delete_confirm' as any), () => {
                                   const updated = flashcards.filter(c => c.bookId !== book.id);
                                   saveFlashcards(updated);
-                                }, 'Kartları Temizle');
+                                }, t('fc_library_delete_confirm_title' as any));
                               }}
                               className="h-8 w-8 rounded-lg bg-rose-500/10 text-rose-500 grid place-items-center hover:bg-rose-500/20"
-                              title="Tüm Kartları Sil"
+                              title={t('fc_library_delete_tooltip' as any)}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -5969,30 +6513,30 @@ function RecallQuizPage({
           <div className="flex flex-col gap-4">
             <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-4`}>
               <div className="border-b border-stone-200 dark:border-zinc-800/60 pb-2">
-                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>BİLGİ KARTLARI İSTATİSTİKLERİ</span>
+                <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{t('fc_library_stats_title' as any)}</span>
               </div>
 
               {/* Counts Grid */}
               <div className="grid grid-cols-3 gap-2">
                 <div className={`p-2.5 rounded-xl border ${isLightTheme ? 'border-stone-150 bg-stone-50' : 'border-zinc-900 bg-zinc-900/15'} flex flex-col items-center text-center`}>
-                  <span className={`text-[8px] font-black ${mutedClass} uppercase`}>OLUŞTURULAN</span>
+                  <span className={`text-[8px] font-black ${mutedClass} uppercase`}>{t('fc_library_stats_created' as any)}</span>
                   <span className="text-base font-black text-indigo-500 mt-1">{flashcards.length}</span>
                 </div>
                 <div className={`p-2.5 rounded-xl border ${isLightTheme ? 'border-stone-150 bg-stone-50' : 'border-zinc-900 bg-zinc-900/15'} flex flex-col items-center text-center`}>
-                  <span className={`text-[8px] font-black ${mutedClass} uppercase`}>SIK GÖSTERİLEN</span>
+                  <span className={`text-[8px] font-black ${mutedClass} uppercase`}>{t('fc_library_stats_frequent' as any)}</span>
                   <span className="text-base font-black text-emerald-500 mt-1">{flashcards.filter(c => c.status === 'more').length}</span>
                 </div>
                 <div className={`p-2.5 rounded-xl border ${isLightTheme ? 'border-stone-150 bg-stone-50' : 'border-zinc-900 bg-zinc-900/15'} flex flex-col items-center text-center`}>
-                  <span className={`text-[8px] font-black ${mutedClass} uppercase`}>GİZLENEN</span>
+                  <span className={`text-[8px] font-black ${mutedClass} uppercase`}>{t('fc_library_stats_hidden' as any)}</span>
                   <span className="text-base font-black text-rose-500 mt-1">{flashcards.filter(c => c.status === 'none').length}</span>
                 </div>
               </div>
 
               {/* List of most studied cards */}
               <div className="flex flex-col gap-2 mt-2">
-                <span className={`text-[9px] font-black ${mutedClass} uppercase tracking-wider`}>EN SIK TEKRAR EDİLEN KARTLAR</span>
+                <span className={`text-[9px] font-black ${mutedClass} uppercase tracking-wider`}>{t('fc_library_frequent_cards' as any)}</span>
                 {flashcards.filter(c => (c.reviewsCount || 0) > 0).length === 0 ? (
-                  <p className="text-[11px] opacity-60 py-2 font-bold text-center">Henüz yeterli tekrar yapılmadı.</p>
+                  <p className="text-[11px] opacity-60 py-2 font-bold text-center">{t('fc_library_no_frequent_cards' as any)}</p>
                 ) : (
                   <div className="flex flex-col gap-2 max-h-[280px] overflow-y-auto custom-note-scrollbar pr-1">
                     {flashcards
@@ -6009,7 +6553,7 @@ function RecallQuizPage({
                           <div className="flex justify-between items-start gap-2">
                             <span className={`text-[11px] font-black truncate max-w-[170px] ${titleClass}`}>{card.front}</span>
                             <span className="text-[9px] font-black text-indigo-500 bg-indigo-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                              {card.reviewsCount || 0} Tekrar
+                              {card.reviewsCount || 0} {lang === 'tr' ? 'Tekrar' : (card.reviewsCount === 1 ? 'Review' : 'Reviews')}
                             </span>
                           </div>
                           <span className="text-[9px] opacity-60 truncate">{card.bookTitle}</span>
@@ -6028,9 +6572,9 @@ function RecallQuizPage({
           {/* Card builder panel */}
           <div className="flex flex-col gap-4">
             <div className={`p-5 rounded-3xl border ${surfaceClass}`}>
-              <label className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>METİN SEÇİN</label>
+              <label className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'METİN SEÇİN' : 'SELECT TEXT'}</label>
               {books.length === 0 ? (
-                <p className="text-xs mt-2 opacity-60">Kütüphanede hiç belge bulunmuyor.</p>
+                <p className="text-xs mt-2 opacity-60">{lang === 'tr' ? 'Kütüphanede hiç belge bulunmuyor.' : 'No documents in the library.'}</p>
               ) : (
                 <SearchableBookSelect
                   books={books}
@@ -6046,10 +6590,10 @@ function RecallQuizPage({
 
             {/* Flashcard options */}
             <div className={`p-5 rounded-3xl border ${surfaceClass} flex flex-col gap-4`}>
-              <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>BİLGİ KARTLARI AYARLARI</span>
+              <span className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>{lang === 'tr' ? 'BİLGİ KARTLARI AYARLARI' : 'FLASHCARD SETTINGS'}</span>
               
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] opacity-70">Kart Sayısı</label>
+                <label className="text-[11px] opacity-70">{lang === 'tr' ? 'Kart Sayısı' : 'Number of Cards'}</label>
                 <input
                   type="number"
                   min={1}
@@ -6061,26 +6605,26 @@ function RecallQuizPage({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] opacity-70">Odak Konusu</label>
+                <label className="text-[11px] opacity-70">{lang === 'tr' ? 'Odak Konusu' : 'Focus Topic'}</label>
                 <select
                   value={flashcardTopic}
                   onChange={(e) => setFlashcardTopic(e.target.value)}
                   className={`w-full h-10 px-3 rounded-xl border text-xs font-bold focus:outline-none focus:border-indigo-500 ${isLightTheme ? 'border-stone-200 bg-white text-stone-900' : 'border-zinc-800 bg-zinc-950 text-zinc-100'}`}
                 >
-                  <option value="Genel">Genel Soru / Cevap</option>
-                  <option value="Tanımlar">Tanım ve Terimler</option>
-                  <option value="Önemli Tarihler">Önemli Tarihler ve Olaylar</option>
-                  <option value="Formül ve Kodlama">Formül ve Kod Şablonları</option>
-                  <option value="Özel">Özel Konu Odaklı</option>
+                  <option value="Genel">{lang === 'tr' ? 'Genel Soru / Cevap' : 'General Question & Answer'}</option>
+                  <option value="Tanımlar">{lang === 'tr' ? 'Tanım ve Terimler' : 'Definitions & Terms'}</option>
+                  <option value="Önemli Tarihler">{lang === 'tr' ? 'Önemli Tarihler ve Olaylar' : 'Key Dates & Events'}</option>
+                  <option value="Formül ve Kodlama">{lang === 'tr' ? 'Formül ve Kod Şablonları' : 'Formulas & Code Templates'}</option>
+                  <option value="Özel">{lang === 'tr' ? 'Özel Konu Odaklı' : 'Custom Topic-Focused'}</option>
                 </select>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] opacity-70">Özel Yönlendirme (İsteğe Bağlı)</label>
+                <label className="text-[11px] opacity-70">{lang === 'tr' ? 'Özel Yönlendirme (İsteğe Bağlı)' : 'Custom Instructions (Optional)'}</label>
                 <textarea
                   value={customTopic}
                   onChange={(e) => setCustomTopic(e.target.value)}
-                  placeholder="Örn: En önemli kavramları, akılda kalması zor kilit bilgileri veya pratik özetleri bilgi kartı haline getirin..."
+                  placeholder={lang === 'tr' ? 'Örn: En önemli kavramları, akılda kalması zor kilit bilgileri veya pratik özetleri bilgi kartı haline getirin...' : 'E.g., turn the most important concepts, hard-to-remember key facts, or practical summaries into flashcards...'}
                   className={`w-full h-20 p-2.5 rounded-xl border text-xs leading-relaxed resize-none focus:outline-none focus:border-indigo-500 ${isLightTheme ? 'border-stone-200 bg-white text-stone-900' : 'border-zinc-850 bg-zinc-950 text-zinc-100'}`}
                 />
               </div>
@@ -6090,7 +6634,7 @@ function RecallQuizPage({
                 disabled={isBusy}
                 className="h-10 w-full mt-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all shadow-lg shadow-indigo-600/20"
               >
-                {isBusy ? 'Kartlar Hazırlanıyor...' : 'Yapay Zeka ile Bilgi Kartı Üret'}
+                {isBusy ? (lang === 'tr' ? 'Kartlar Hazırlanıyor...' : 'Preparing Cards...') : (lang === 'tr' ? 'Yapay Zeka ile Bilgi Kartı Üret' : 'Generate Flashcards with AI')}
               </button>
             </div>
           </div>
@@ -6101,8 +6645,10 @@ function RecallQuizPage({
               <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-5`}>
                 <div className="flex justify-between items-center border-b border-stone-200 dark:border-zinc-800/60 pb-3">
                   <div>
-                    <h3 className={`text-base font-black ${titleClass}`}>{selectedBook.title} - Bilgi Kartları</h3>
-                    <p className={`text-xs mt-1 ${mutedClass}`}>Bilgi kartları yardımıyla aktif hatırlama ve pekiştirme yapın.</p>
+                    <h3 className={`text-base font-black ${titleClass}`}>
+                      {selectedBook.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : selectedBook.title} - {lang === 'tr' ? 'Bilgi Kartları' : 'Flashcards'}
+                    </h3>
+                    <p className={`text-xs mt-1 ${mutedClass}`}>{lang === 'tr' ? 'Bilgi kartları yardımıyla aktif hatırlama ve pekiştirme yapın.' : 'Practice active recall and reinforcement using flashcards.'}</p>
                   </div>
                   {bookFlashcards.length > 0 && (
                     <button
@@ -6111,7 +6657,7 @@ function RecallQuizPage({
                         isLightTheme ? 'border-stone-250 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-800 bg-transparent text-zinc-300 hover:bg-zinc-900/50'
                       }`}
                     >
-                      <Maximize2 className="w-4 h-4" /> Odak Modu
+                      <Maximize2 className="w-4 h-4" /> {lang === 'tr' ? 'Odak Modu' : 'Focus Mode'}
                     </button>
                   )}
                 </div>
@@ -6119,7 +6665,7 @@ function RecallQuizPage({
                 {isBusy ? (
                   <div className="py-20 flex flex-col items-center justify-center gap-3">
                     <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-                    <p className={`text-xs ${mutedClass}`}>Yapay Zeka Bilgi Kartları Hazırlanıyor...</p>
+                    <p className={`text-xs ${mutedClass}`}>{lang === 'tr' ? 'Yapay Zeka Bilgi Kartları Hazırlanıyor...' : 'Preparing AI Flashcards...'}</p>
                   </div>
                 ) : activeCard ? (
                   <div className="flex flex-col gap-6">
@@ -6132,16 +6678,16 @@ function RecallQuizPage({
                         >
                           {/* Front Face */}
                           <div className={`flip-card-front p-6 border text-center shadow-lg ${surfaceClass}`}>
-                            <span className="text-[10px] font-black uppercase text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-lg">Ön Yüz</span>
+                            <span className="text-[10px] font-black uppercase text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-lg">{lang === 'tr' ? 'Ön Yüz' : 'Front Face'}</span>
                             <p className={`text-sm font-black leading-relaxed ${titleClass} mt-4`}>{activeCard.front}</p>
-                            <span className={`text-[10px] mt-6 ${mutedClass}`}>Detayları görmek için karta tıklayın</span>
+                            <span className={`text-[10px] mt-6 ${mutedClass}`}>{lang === 'tr' ? 'Detayları görmek için karta tıklayın' : 'Click card to see details'}</span>
                           </div>
 
                           {/* Back Face */}
                           <div className={`flip-card-back p-6 border text-center shadow-lg ${isLightTheme ? 'border-indigo-500/40 bg-indigo-50/50' : 'border-indigo-500/40 bg-indigo-950/20'} ${surfaceClass}`}>
-                            <span className="text-[10px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-lg">Arka Yüz (Açıklama)</span>
+                            <span className="text-[10px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-lg">{lang === 'tr' ? 'Arka Yüz (Açıklama)' : 'Back Face (Explanation)'}</span>
                             <p className={`text-xs font-semibold leading-relaxed ${titleClass} mt-4`}>{activeCard.back}</p>
-                            <span className={`text-[10px] mt-6 ${mutedClass}`}>Geri dönmek için tıklayın</span>
+                            <span className={`text-[10px] mt-6 ${mutedClass}`}>{lang === 'tr' ? 'Geri dönmek için tıklayın' : 'Click to go back'}</span>
                           </div>
                         </div>
                       </div>
@@ -6153,7 +6699,7 @@ function RecallQuizPage({
                         onClick={() => handleUpdateCardStatus(activeCard.id, 'none')}
                         className="h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-bold hover:bg-rose-500/20 transition-all"
                       >
-                        Tekrar Gösterme
+                        {lang === 'tr' ? 'Tekrar Gösterme' : 'Do Not Show Again'}
                       </button>
                       <button
                         onClick={() => handleUpdateCardStatus(activeCard.id, 'normal')}
@@ -6161,13 +6707,13 @@ function RecallQuizPage({
                           isLightTheme ? 'border-stone-250 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:bg-zinc-900'
                         }`}
                       >
-                        Normal Göster
+                        {lang === 'tr' ? 'Normal Göster' : 'Show Normal'}
                       </button>
                       <button
                         onClick={() => handleUpdateCardStatus(activeCard.id, 'more')}
                         className="h-10 rounded-xl bg-indigo-600 text-white text-xs font-black hover:bg-indigo-700 transition-all"
                       >
-                        Daha Sık Göster
+                        {lang === 'tr' ? 'Daha Sık Göster' : 'Show More Often'}
                       </button>
                     </div>
 
@@ -6177,7 +6723,7 @@ function RecallQuizPage({
                         onClick={() => { setIsCardFlipped(false); setCurrentCardIndex(currentCardIndex - 1); }}
                         className="text-xs font-bold opacity-60 hover:opacity-100 disabled:opacity-30"
                       >
-                        ← Önceki
+                        {lang === 'tr' ? '← Önceki' : '← Previous'}
                       </button>
                       
                       {cardHistoryStack.length > 0 && (
@@ -6185,7 +6731,7 @@ function RecallQuizPage({
                           onClick={handleUndoCardAction}
                           className="text-xs text-indigo-500 font-bold hover:underline flex items-center gap-1"
                         >
-                          <Undo className="w-3.5 h-3.5" /> Geri Al
+                          <Undo className="w-3.5 h-3.5" /> {lang === 'tr' ? 'Geri Al' : 'Undo'}
                         </button>
                       )}
 
@@ -6194,19 +6740,19 @@ function RecallQuizPage({
                         onClick={() => { setIsCardFlipped(false); setCurrentCardIndex(currentCardIndex + 1); }}
                         className="text-xs font-bold opacity-60 hover:opacity-100 disabled:opacity-30"
                       >
-                        Sonraki →
+                        {lang === 'tr' ? 'Sonraki →' : 'Next →'}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="py-20 text-center flex flex-col items-center justify-center gap-3">
                     <Bookmark className="w-8 h-8 text-indigo-500 opacity-60" />
-                    <p className="text-xs opacity-60">Bu belgeye ait bilgi kartı bulunmuyor.</p>
+                    <p className="text-xs opacity-60">{lang === 'tr' ? 'Bu belgeye ait bilgi kartı bulunmuyor.' : 'No flashcards found for this document.'}</p>
                   </div>
                 )}
               </div>
             ) : (
-              <EmptyState text="Belge seçimi gerekli." />
+              <EmptyState text={lang === 'tr' ? 'Belge seçimi gerekli.' : 'Document selection required.'} />
             )}
           </div>
         </div>
@@ -6217,8 +6763,8 @@ function RecallQuizPage({
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-stone-200 dark:border-zinc-800/60 pb-4">
             <div>
-              <h3 className={`text-base font-black ${titleClass}`}>Hafıza Laboratuvarı</h3>
-              <p className={`text-xs mt-1 ${mutedClass}`}>Tekrar planındaki bilgi kartlarını izleyin ve etiketlerini yönetin.</p>
+              <h3 className={`text-base font-black ${titleClass}`}>{t('fc_title')}</h3>
+              <p className={`text-xs mt-1 ${mutedClass}`}>{t('fc_manager_subtitle' as any)}</p>
             </div>
             
             {/* Search Input */}
@@ -6230,7 +6776,7 @@ function RecallQuizPage({
                 type="text"
                 value={flashcardSearch}
                 onChange={(e) => setFlashcardSearch(e.target.value)}
-                placeholder="Kartlarda veya belgelerde ara..."
+                placeholder={t('fc_manager_search_placeholder' as any)}
                 className={`w-full h-9 pl-9 pr-4 rounded-xl border text-xs focus:outline-none focus:border-indigo-500 ${
                   isLightTheme ? 'border-stone-200 bg-white text-stone-900' : 'border-zinc-850 bg-zinc-950 text-zinc-100'
                 }`}
@@ -6248,7 +6794,7 @@ function RecallQuizPage({
                   : 'border border-transparent opacity-60 hover:opacity-100'
               }`}
             >
-              Sık Gösterilecekler
+              {t('fc_manager_tab_more' as any)}
             </button>
             <button
               onClick={() => setFlashcardManagerTab('none')}
@@ -6258,24 +6804,24 @@ function RecallQuizPage({
                   : 'border border-transparent opacity-60 hover:opacity-100'
               }`}
             >
-              Tekrar Gösterilmeyecekler
+              {t('fc_manager_tab_none' as any)}
             </button>
           </div>
 
           {/* Cards List Grid */}
           {filteredManagerCards.length === 0 ? (
             <div className="py-16 text-center text-xs opacity-60">
-              Aradığınız kriterlere uygun etiketlenmiş kart bulunamadı.
+              {t('fc_manager_no_cards' as any)}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className={`border-b ${isLightTheme ? 'border-stone-200 text-stone-600' : 'border-zinc-800 text-zinc-400'} font-bold uppercase tracking-wider text-[10px]`}>
-                    <th className="pb-3 pl-4 w-1/4">İlişkili Belge</th>
-                    <th className="pb-3 w-1/3">Ön Yüz (Soru/Terim)</th>
-                    <th className="pb-3 w-1/3">Arka Yüz (Cevap/Açıklama)</th>
-                    <th className="pb-3 pr-4 text-right w-[100px]">İşlemler</th>
+                    <th className="pb-3 pl-4 w-1/4">{t('fc_manager_col_book' as any)}</th>
+                    <th className="pb-3 w-1/3">{t('fc_manager_col_front' as any)}</th>
+                    <th className="pb-3 w-1/3">{t('fc_manager_col_back' as any)}</th>
+                    <th className="pb-3 pr-4 text-right w-[100px]">{t('fc_manager_col_actions' as any)}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100 dark:divide-zinc-900">
@@ -6285,7 +6831,7 @@ function RecallQuizPage({
                       className={`group hover:bg-stone-50 dark:hover:bg-zinc-900/40 transition-colors`}
                     >
                       <td className="py-4 pl-4 pr-3 font-semibold text-indigo-500 truncate max-w-[200px]">
-                        {card.bookTitle}
+                        {card.bookTitle === 'Velox okuma rehberi' && lang !== 'tr' ? 'Velox Speed Reading Guide' : card.bookTitle}
                       </td>
                       <td className={`py-4 pr-3 font-black ${titleClass} break-words`}>
                         {card.front}
@@ -6298,14 +6844,14 @@ function RecallQuizPage({
                           <button
                             onClick={() => handleUpdateCardStatus(card.id, 'normal')}
                             className="text-[11px] text-indigo-500 font-bold hover:underline"
-                            title="Etiketi Kaldır"
+                            title={t('fc_manager_remove_tag' as any)}
                           >
-                            Etiketi Kaldır
+                            {t('fc_manager_remove_tag' as any)}
                           </button>
                           <button
                             onClick={() => handleDeleteFlashcard(card.id)}
                             className="text-rose-500 hover:text-rose-600 opacity-60 group-hover:opacity-100 transition-opacity"
-                            title="Kartı Sil"
+                            title={t('fc_manager_delete_tooltip' as any)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -6374,15 +6920,17 @@ function RecallQuizPage({
           {/* Header */}
           <div className="flex justify-between items-center w-full max-w-4xl mx-auto border-b border-white/10 pb-4">
             <div>
-              <h3 className="text-sm font-black text-indigo-400 uppercase tracking-wider">{selectedBook?.title}</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">Bilgi Kartı Odak Okuma Modu</p>
+              <h3 className="text-sm font-black text-indigo-400 uppercase tracking-wider">
+                {selectedBook?.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : selectedBook?.title}
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">{t('fc_focus_mode_desc' as any)}</p>
             </div>
             <button
               onClick={() => setIsFlashcardFocusMode(false)}
               className="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all flex items-center gap-1.5 text-xs font-bold"
-              title="Çıkmak için Esc tuşuna da basabilirsiniz"
+              title={t('fc_focus_mode_esc_tip' as any)}
             >
-              <Minimize2 className="w-4 h-4" /> Odak Modundan Çık
+              <Minimize2 className="w-4 h-4" /> {t('fc_focus_mode_exit' as any)}
             </button>
           </div>
 
@@ -6395,16 +6943,16 @@ function RecallQuizPage({
               >
                 {/* Front Face */}
                 <div className="flip-card-front p-8 border border-white/10 text-center shadow-2xl bg-zinc-900/90 text-white">
-                  <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">Ön Yüz</span>
+                  <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">{t('fc_front_side')}</span>
                   <p className="text-lg font-black text-white leading-relaxed mt-4">{activeCard.front}</p>
-                  <span className="text-[10px] mt-6 text-zinc-500">Detayları görmek için karta tıklayın</span>
+                  <span className="text-[10px] mt-6 text-zinc-500">{t('fc_flip_hint')}</span>
                 </div>
 
                 {/* Back Face */}
                 <div className="flip-card-back p-8 border border-white/10 text-center shadow-2xl bg-indigo-950/40 text-white">
-                  <span className="text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">Arka Yüz (Açıklama)</span>
+                  <span className="text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">{t('fc_back_side')}</span>
                   <p className="text-sm font-semibold text-zinc-200 leading-relaxed mt-4">{activeCard.back}</p>
-                  <span className="text-[10px] mt-6 text-zinc-500">Geri dönmek için tıklayın</span>
+                  <span className="text-[10px] mt-6 text-zinc-500">{t('fc_flip_back_hint')}</span>
                 </div>
               </div>
             </div>
@@ -6417,19 +6965,19 @@ function RecallQuizPage({
                 onClick={() => handleUpdateCardStatus(activeCard.id, 'none')}
                 className="h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold hover:bg-rose-500/20 transition-all"
               >
-                Tekrar Gösterme
+                {t('fc_btn_no_show')}
               </button>
               <button
                 onClick={() => handleUpdateCardStatus(activeCard.id, 'normal')}
                 className="h-12 rounded-xl border border-white/10 bg-white/5 text-zinc-300 text-xs font-bold hover:bg-white/10 transition-all"
               >
-                Normal Göster
+                {t('fc_btn_show_normal')}
               </button>
               <button
                 onClick={() => handleUpdateCardStatus(activeCard.id, 'more')}
                 className="h-12 rounded-xl bg-indigo-600 text-white text-xs font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
               >
-                Daha Sık Göster
+                {t('fc_btn_show_more')}
               </button>
             </div>
 
@@ -6439,7 +6987,7 @@ function RecallQuizPage({
                 onClick={() => { setIsCardFlipped(false); setCurrentCardIndex(currentCardIndex - 1); }}
                 className="text-xs font-bold text-zinc-400 hover:text-white disabled:opacity-30"
               >
-                ← Önceki Kart
+                ← {t('fc_focus_mode_prev_card' as any)}
               </button>
               
               {cardHistoryStack.length > 0 && (
@@ -6447,7 +6995,7 @@ function RecallQuizPage({
                   onClick={handleUndoCardAction}
                   className="text-xs text-indigo-400 font-bold hover:underline flex items-center gap-1"
                 >
-                  <Undo className="w-3.5 h-3.5" /> Son Değerlendirmeyi Geri Al
+                  <Undo className="w-3.5 h-3.5" /> {t('fc_focus_mode_undo_eval' as any)}
                 </button>
               )}
 
@@ -6456,7 +7004,7 @@ function RecallQuizPage({
                 onClick={() => { setIsCardFlipped(false); setCurrentCardIndex(currentCardIndex + 1); }}
                 className="text-xs font-bold text-zinc-400 hover:text-white disabled:opacity-30"
               >
-                Sonraki Kart →
+                {t('fc_focus_mode_next_card' as any)} →
               </button>
             </div>
           </div>
@@ -6534,6 +7082,7 @@ function ResultModal({
 }
 
 function EditQuizModal({ quiz, onClose, onSave, isLightTheme, surfaceClass, titleClass, mutedClass }: any) {
+  const { t, lang } = useTranslation();
   const [questions, setQuestions] = useState<any[]>(() => {
     return JSON.parse(JSON.stringify(quiz.questions || []));
   });
@@ -6567,8 +7116,10 @@ function EditQuizModal({ quiz, onClose, onSave, isLightTheme, surfaceClass, titl
         {/* Header */}
         <div className="p-5 border-b border-stone-250/50 dark:border-zinc-850 flex justify-between items-center">
           <div>
-            <h3 className={`text-base font-black ${titleClass}`}>Sınavı Düzenle</h3>
-            <p className={`text-[11px] ${mutedClass} mt-0.5`}>{quiz.bookTitle}</p>
+            <h3 className={`text-base font-black ${titleClass}`}>{t('quiz_edit_title' as any)}</h3>
+            <p className={`text-[11px] ${mutedClass} mt-0.5`}>
+              {quiz.bookTitle === 'Velox okuma rehberi' && lang !== 'tr' ? 'Velox Speed Reading Guide' : quiz.bookTitle}
+            </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-zinc-900">
             <X className="w-5 h-5" />
@@ -6578,23 +7129,23 @@ function EditQuizModal({ quiz, onClose, onSave, isLightTheme, surfaceClass, titl
         {/* Scrollable Form */}
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6 custom-note-scrollbar">
           {questions.length === 0 ? (
-            <p className="text-xs text-center opacity-60 py-6">Sınavda hiç soru kalmadı.</p>
+            <p className="text-xs text-center opacity-60 py-6">{t('quiz_edit_no_questions' as any)}</p>
           ) : (
             questions.map((q, qIdx) => (
               <div key={qIdx} className={`p-4 rounded-2xl border ${isLightTheme ? 'border-stone-200 bg-stone-50' : 'border-zinc-850 bg-zinc-900/10'} flex flex-col gap-4`}>
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-indigo-500 uppercase">Soru {qIdx + 1}</span>
+                  <span className="text-[10px] font-black text-indigo-500 uppercase">{t('quiz_edit_question' as any)} {qIdx + 1}</span>
                   <button
                     onClick={() => handleDeleteQuestion(qIdx)}
                     className="text-rose-500 hover:text-rose-600 text-xs font-bold"
                   >
-                    Soruyu Sil
+                    {t('quiz_edit_delete_question' as any)}
                   </button>
                 </div>
 
                 {/* Question Text */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] opacity-75">Soru Metni</label>
+                  <label className="text-[11px] opacity-75">{t('quiz_edit_question_text' as any)}</label>
                   <textarea
                     value={q.question}
                     onChange={(e) => handleUpdateQuestion(qIdx, 'question', e.target.value)}
@@ -6604,7 +7155,7 @@ function EditQuizModal({ quiz, onClose, onSave, isLightTheme, surfaceClass, titl
 
                 {/* Options */}
                 <div className="flex flex-col gap-2">
-                  <label className="text-[11px] opacity-75">Seçenekler (Doğru seçeneği daire işaretleyerek belirleyin)</label>
+                  <label className="text-[11px] opacity-75">{t('quiz_edit_options_label' as any)}</label>
                   {q.options.map((opt: string, optIdx: number) => (
                     <div key={optIdx} className="flex items-center gap-2">
                       <input
@@ -6626,7 +7177,7 @@ function EditQuizModal({ quiz, onClose, onSave, isLightTheme, surfaceClass, titl
 
                 {/* Explanation */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] opacity-75">Açıklama / Çözüm (İsteğe Bağlı)</label>
+                  <label className="text-[11px] opacity-75">{t('quiz_edit_explanation_label' as any)}</label>
                   <textarea
                     value={q.explanation || ''}
                     onChange={(e) => handleUpdateQuestion(qIdx, 'explanation', e.target.value)}
@@ -6644,7 +7195,7 @@ function EditQuizModal({ quiz, onClose, onSave, isLightTheme, surfaceClass, titl
               isLightTheme ? 'border-stone-250 hover:bg-stone-50 text-stone-700' : 'border-zinc-800 hover:bg-zinc-900/30 text-zinc-400'
             }`}
           >
-            + Yeni Soru Ekle
+            + {t('quiz_edit_add_question' as any)}
           </button>
         </div>
 
@@ -6654,13 +7205,13 @@ function EditQuizModal({ quiz, onClose, onSave, isLightTheme, surfaceClass, titl
             onClick={onClose}
             className={`h-10 px-4 rounded-xl border text-xs font-bold ${isLightTheme ? 'border-stone-250 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-800 bg-transparent text-zinc-300 hover:bg-zinc-900/50'}`}
           >
-            Vazgeç
+            {t('quiz_edit_cancel' as any)}
           </button>
           <button
             onClick={() => onSave(questions)}
             className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-lg shadow-indigo-600/20"
           >
-            Sınavı Kaydet
+            {t('quiz_edit_save' as any)}
           </button>
         </div>
       </div>
@@ -6669,6 +7220,7 @@ function EditQuizModal({ quiz, onClose, onSave, isLightTheme, surfaceClass, titl
 }
 
 function EditFlashcardsModal({ bookId, bookTitle, cards, onClose, onSave, isLightTheme, surfaceClass, titleClass, mutedClass }: any) {
+  const { t, lang } = useTranslation();
   const [editedCards, setEditedCards] = useState<any[]>(() => {
     return JSON.parse(JSON.stringify(cards));
   });
@@ -6702,8 +7254,10 @@ function EditFlashcardsModal({ bookId, bookTitle, cards, onClose, onSave, isLigh
         {/* Header */}
         <div className="p-5 border-b border-stone-250/50 dark:border-zinc-850 flex justify-between items-center">
           <div>
-            <h3 className={`text-base font-black ${titleClass}`}>Kart Destesini Düzenle</h3>
-            <p className={`text-[11px] ${mutedClass} mt-0.5`}>{bookTitle}</p>
+            <h3 className={`text-base font-black ${titleClass}`}>{t('fc_edit_title' as any)}</h3>
+            <p className={`text-[11px] ${mutedClass} mt-0.5`}>
+              {bookTitle === 'Velox okuma rehberi' && lang !== 'tr' ? 'Velox Speed Reading Guide' : bookTitle}
+            </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-zinc-900">
             <X className="w-5 h-5" />
@@ -6713,23 +7267,23 @@ function EditFlashcardsModal({ bookId, bookTitle, cards, onClose, onSave, isLigh
         {/* Scrollable Form */}
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6 custom-note-scrollbar">
           {editedCards.length === 0 ? (
-            <p className="text-xs text-center opacity-60 py-6">Destede hiç bilgi kartı kalmadı.</p>
+            <p className="text-xs text-center opacity-60 py-6">{t('fc_edit_no_cards' as any)}</p>
           ) : (
             editedCards.map((card, idx) => (
               <div key={card.id || idx} className={`p-4 rounded-2xl border ${isLightTheme ? 'border-stone-200 bg-stone-50' : 'border-zinc-850 bg-zinc-900/10'} flex flex-col gap-3 relative group`}>
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-indigo-500 uppercase">Kart {idx + 1}</span>
+                  <span className="text-[10px] font-black text-indigo-500 uppercase">{t('fc_edit_card' as any)} {idx + 1}</span>
                   <button
                     onClick={() => handleDeleteCard(idx)}
                     className="text-rose-500 hover:text-rose-600 text-xs font-bold"
                   >
-                    Kartı Çıkar
+                    {t('fc_edit_remove_card' as any)}
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] opacity-75">Ön Yüz (Kavram / Soru)</label>
+                    <label className="text-[10px] opacity-75">{t('fc_front_label' as any)}</label>
                     <textarea
                       value={card.front}
                       onChange={(e) => handleUpdateCard(idx, 'front', e.target.value)}
@@ -6737,7 +7291,7 @@ function EditFlashcardsModal({ bookId, bookTitle, cards, onClose, onSave, isLigh
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] opacity-75">Arka Yüz (Açıklama / Cevap)</label>
+                    <label className="text-[10px] opacity-75">{t('fc_back_label' as any)}</label>
                     <textarea
                       value={card.back}
                       onChange={(e) => handleUpdateCard(idx, 'back', e.target.value)}
@@ -6756,7 +7310,7 @@ function EditFlashcardsModal({ bookId, bookTitle, cards, onClose, onSave, isLigh
               isLightTheme ? 'border-stone-250 hover:bg-stone-50 text-stone-700' : 'border-zinc-800 hover:bg-zinc-900/30 text-zinc-400'
             }`}
           >
-            + Yeni Kart Ekle
+            + {t('fc_edit_add_card' as any)}
           </button>
         </div>
 
@@ -6766,13 +7320,13 @@ function EditFlashcardsModal({ bookId, bookTitle, cards, onClose, onSave, isLigh
             onClick={onClose}
             className={`h-10 px-4 rounded-xl border text-xs font-bold ${isLightTheme ? 'border-stone-250 bg-white text-stone-700 hover:bg-stone-50' : 'border-zinc-800 bg-transparent text-zinc-300 hover:bg-zinc-900/50'}`}
           >
-            Vazgeç
+            {t('quiz_edit_cancel' as any)}
           </button>
           <button
             onClick={() => onSave(editedCards)}
             className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-lg shadow-indigo-600/20"
           >
-            Kartları Kaydet
+            {t('fc_edit_save' as any)}
           </button>
         </div>
       </div>

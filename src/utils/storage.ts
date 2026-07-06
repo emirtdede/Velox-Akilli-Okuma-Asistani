@@ -280,6 +280,24 @@ export const StorageService = {
     }
   },
 
+  updateBookComprehension(bookId: string, comprehension: any): void {
+    const books = this.getBooks();
+    const idx = books.findIndex(b => b.id === bookId);
+    if (idx !== -1) {
+      books[idx].comprehensionQuestions = comprehension;
+      this.saveBooks(books);
+    }
+  },
+
+  updateBookInsights(bookId: string, insights: any): void {
+    const books = this.getBooks();
+    const idx = books.findIndex(b => b.id === bookId);
+    if (idx !== -1) {
+      books[idx].insightsResult = insights;
+      this.saveBooks(books);
+    }
+  },
+
   // Stats Analytics persistence
   getStats(): UserStats {
     try {
