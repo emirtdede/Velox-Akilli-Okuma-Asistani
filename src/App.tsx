@@ -555,6 +555,10 @@ Now you can click the "Start Reading" button to have your first experience, and 
     });
   }, [books, bookFilter, bookSearch]);
 
+  const booksWithFlashcards = useMemo(() => {
+    return books.filter(b => flashcards.some(c => c.bookId === b.id));
+  }, [books, flashcards]);
+
   const todayKey = new Date().toISOString().split('T')[0];
   const todayHistory = stats.history.find(item => item.date === todayKey);
   const todayWords = todayHistory?.wordCount || 0;
@@ -5107,9 +5111,11 @@ function SearchableBookSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredBooks = books.filter((b: any) =>
-    (b.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : b.title).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredBooks = useMemo(() => {
+    return books.filter((b: any) =>
+      (b.id === 'sample-welcome' && lang !== 'tr' ? 'Velox Speed Reading Guide' : b.title).toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [books, searchQuery, lang]);
 
   return (
     <div className="relative w-full mt-2" ref={dropdownRef}>
@@ -5211,6 +5217,10 @@ function RecallQuizPage({
   const [editingDesteBookId, setEditingDesteBookId] = useState<string | null>(null);
   const [selectedBookId, setSelectedBookId] = useState<string>('');
   const { t, lang } = useTranslation();
+
+  const booksWithFlashcards = useMemo(() => {
+    return books.filter((b: any) => flashcards.some((c: any) => c.bookId === b.id));
+  }, [books, flashcards]);
   
   // Quiz Builder / Active Exam States
   const [quizData, setQuizData] = useState<any>(null);
@@ -6474,14 +6484,14 @@ function RecallQuizPage({
           {/* Saved Flashcard sets Column */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className={`p-6 rounded-3xl border ${surfaceClass}`}>
-              <h3 className={`text-base font-black ${titleClass} mb-4`}>{t('fc_library_saved_decks' as any)} ({books.filter(b => flashcards.some(c => c.bookId === b.id)).length})</h3>
-              {books.filter(b => flashcards.some(c => c.bookId === b.id)).length === 0 ? (
+              <h3 className={`text-base font-black ${titleClass} mb-4`}>{t('fc_library_saved_decks' as any)} ({booksWithFlashcards.length})</h3>
+              {booksWithFlashcards.length === 0 ? (
                 <div className="py-12 text-center">
                   <p className="text-xs opacity-60">{t('fc_library_no_decks' as any)}</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
-                  {books.filter(b => flashcards.some(c => c.bookId === b.id)).map((book) => {
+                  {booksWithFlashcards.map((book) => {
                     const bookCards = flashcards.filter(c => c.bookId === book.id);
                     return (
                       <div
