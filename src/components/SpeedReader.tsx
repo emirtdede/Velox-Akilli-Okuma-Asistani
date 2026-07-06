@@ -109,6 +109,67 @@ export default function SpeedReader({
       return true;
     }
   });
+
+  const [isFocusLineEnabled, setIsFocusLineEnabled] = useState(() => {
+    return localStorage.getItem('velox_focus_line') === 'true';
+  });
+  const [isAntiRegressionEnabled, setIsAntiRegressionEnabled] = useState(() => {
+    return localStorage.getItem('velox_anti_regression') === 'true';
+  });
+  const [regressionIntensity, setRegressionIntensity] = useState(() => {
+    const val = localStorage.getItem('velox_regression_intensity');
+    return val ? parseFloat(val) : 0.15;
+  });
+
+  // Eye Rest States
+  const [readingTimeSeconds, setReadingTimeSeconds] = useState(0);
+  const [showEyeRestOverlay, setShowEyeRestOverlay] = useState(false);
+  const [eyeRestCountdown, setEyeRestCountdown] = useState(20);
+
+  useEffect(() => {
+    localStorage.setItem('velox_focus_line', String(isFocusLineEnabled));
+  }, [isFocusLineEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('velox_anti_regression', String(isAntiRegressionEnabled));
+  }, [isAntiRegressionEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('velox_regression_intensity', String(regressionIntensity));
+  }, [regressionIntensity]);
+
+  useEffect(() => {
+    if (!isPlaying || showEyeRestOverlay) return;
+    const interval = setInterval(() => {
+      setReadingTimeSeconds(prev => {
+        const next = prev + 1;
+        // Trigger eye rest overlay at 20 minutes (1200 seconds)
+        if (next >= 1200) {
+          setIsPlaying(false);
+          setShowEyeRestOverlay(true);
+          setEyeRestCountdown(20);
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isPlaying, showEyeRestOverlay]);
+
+  useEffect(() => {
+    if (!showEyeRestOverlay) return;
+    const interval = setInterval(() => {
+      setEyeRestCountdown(prev => {
+        if (prev <= 1) {
+          setShowEyeRestOverlay(false);
+          return 20;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showEyeRestOverlay]);
+
   const [showTools, setShowTools] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -342,9 +403,15 @@ export default function SpeedReader({
     if (readingMode === 'line') {
       return (
         <div className="text-center px-6 flex flex-col gap-4">
-          <div className="text-sm opacity-35 truncate">{words.slice(Math.max(0, currentIndex - 8), currentIndex).join(' ')}</div>
-          <div className="text-3xl md:text-4xl font-extrabold text-[#4A6CFF]">{currentWordGroup.join(' ') || 'Tamamlandı'}</div>
-          <div className="text-sm opacity-35 truncate">{words.slice(currentIndex + groupSize, currentIndex + groupSize + 8).join(' ')}</div>
+          <div className={`text-sm transition-all duration-200 truncate ${isFocusLineEnabled ? 'opacity-5 blur-[0.5px]' : 'opacity-35'}`}>
+            {words.slice(Math.max(0, currentIndex - 8), currentIndex).join(' ')}
+          </div>
+          <div className={`text-3xl md:text-4xl font-extrabold text-[#4A6CFF] relative py-2 ${isFocusLineEnabled ? 'bg-indigo-500/5 rounded-xl border-y border-indigo-500/10' : ''}`}>
+            {currentWordGroup.join(' ') || 'Tamamlandı'}
+          </div>
+          <div className={`text-sm transition-all duration-200 truncate ${isFocusLineEnabled ? 'opacity-5 blur-[0.5px]' : 'opacity-35'}`}>
+            {words.slice(currentIndex + groupSize, currentIndex + groupSize + 8).join(' ')}
+          </div>
         </div>
       );
     }
@@ -357,14 +424,27 @@ export default function SpeedReader({
           {words.slice(start, end).map((word, offset) => {
             const index = start + offset;
             const active = index >= currentIndex && index < currentIndex + groupSize;
+            const isPast = index < currentIndex;
+            
+            let opacityStyle: React.CSSProperties = {};
+            let classNameStr = "transition-all duration-150 rounded px-2.5 py-0.5 ";
+
+            if (active) {
+              classNameStr += "bg-[#4A6CFF] text-white font-extrabold scale-110 shadow-lg shadow-[#4A6CFF]/20";
+            } else if (isPast && isAntiRegressionEnabled) {
+              classNameStr += "scale-90 blur-[0.5px]";
+              opacityStyle = { opacity: regressionIntensity };
+            } else if (isFocusLineEnabled) {
+              classNameStr += "opacity-5 scale-95";
+            } else {
+              classNameStr += "opacity-20 scale-95 blur-[0.5px]";
+            }
+
             return (
               <span 
                 key={`${word}-${index}`} 
-                className={`transition-all duration-150 rounded px-2.5 py-0.5 ${
-                  active 
-                    ? 'bg-[#4A6CFF] text-white font-extrabold scale-110 shadow-lg shadow-[#4A6CFF]/20' 
-                    : 'opacity-20 scale-95 blur-[0.5px]'
-                }`}
+                className={classNameStr}
+                style={opacityStyle}
               >
                 {word}
               </span>
@@ -382,14 +462,27 @@ export default function SpeedReader({
           {words.slice(start, end).map((word, offset) => {
             const index = start + offset;
             const active = index >= currentIndex && index < currentIndex + groupSize;
+            const isPast = index < currentIndex;
+
+            let opacityStyle: React.CSSProperties = {};
+            let classNameStr = "transition-all duration-200 px-1 rounded ";
+
+            if (active) {
+              classNameStr += "text-[#4A6CFF] bg-[#4A6CFF]/10 font-bold border border-[#4A6CFF]/20 scale-105";
+            } else if (isPast && isAntiRegressionEnabled) {
+              classNameStr += "scale-95";
+              opacityStyle = { opacity: regressionIntensity };
+            } else if (isFocusLineEnabled) {
+              classNameStr += "opacity-10 scale-95";
+            } else {
+              classNameStr += "opacity-35";
+            }
+
             return (
               <span 
                 key={`${word}-${index}`} 
-                className={`transition-all duration-200 px-1 rounded ${
-                  active 
-                    ? 'text-[#4A6CFF] bg-[#4A6CFF]/10 font-bold border border-[#4A6CFF]/20 scale-105' 
-                    : 'opacity-35'
-                }`}
+                className={classNameStr}
+                style={opacityStyle}
               >
                 {word}
               </span>
@@ -407,6 +500,7 @@ export default function SpeedReader({
           {words.slice(start, end).map((word, offset) => {
             const index = start + offset;
             const active = index >= currentIndex && index < currentIndex + groupSize;
+            const isPast = index < currentIndex;
             
             let renderedWord;
             if (word.length <= 1) {
@@ -423,8 +517,20 @@ export default function SpeedReader({
               );
             }
 
+            let opacityStyle: React.CSSProperties = {};
+            let classNameStr = "transition-all duration-150 ";
+
+            if (active) {
+              // no dimming
+            } else if (isPast && isAntiRegressionEnabled) {
+              classNameStr += "blur-[0.5px] scale-95";
+              opacityStyle = { opacity: regressionIntensity };
+            } else if (isFocusLineEnabled) {
+              classNameStr += "opacity-10";
+            }
+
             return (
-              <span key={`${word}-${index}`} className="transition-all duration-150">
+              <span key={`${word}-${index}`} className={classNameStr} style={opacityStyle}>
                 {renderedWord}
               </span>
             );
@@ -663,10 +769,60 @@ export default function SpeedReader({
                 {readingMode === 'center' && groupSize === 1 && <button onClick={() => setIsOrp(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${isOrp ? 'bg-amber-500/10 border-amber-500/40 text-amber-400' : 'opacity-50'}`} title={lang === 'tr' ? 'Optimal Tanıma Noktası: kelimenin gözün en hızlı yakaladığı harfini vurgular' : 'Optimal Recognition Point: highlights the easiest letter to recognize'}>ORP</button>}
                 {readingMode === 'center' && groupSize === 1 && <button onClick={() => setShowFocusGuides(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${showFocusGuides ? 'bg-[#4A6CFF]/10 border-[#4A6CFF]/35 text-[#4A6CFF]' : 'opacity-50'}`} title={lang === 'tr' ? 'Kelimenin merkezindeki odak çizgilerini göster veya gizle' : 'Show or hide center focus guides'} aria-pressed={showFocusGuides}>{lang === 'tr' ? 'Odak Çizgisi' : 'Focus Guide'}</button>}
                 <button onClick={() => setSmartPauses(prev => !prev)} className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${smartPauses ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'opacity-50'}`} title={lang === 'tr' ? 'Nokta, virgül ve uzun kelimelerde kısa doğal duraklamalar ekler' : 'Adds natural pauses at punctuation or long words'}>{lang === 'tr' ? 'Akıllı Es' : 'Smart Pause'}</button>
+                <button
+                  onClick={() => setIsFocusLineEnabled(prev => !prev)}
+                  className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${isFocusLineEnabled ? 'bg-indigo-550/15 border-indigo-500/45 text-indigo-400 font-extrabold' : 'opacity-50'}`}
+                  title={lang === 'tr' ? 'Satır Takip Vurgusunu açar/kapatır' : 'Toggles active reading line focus highlight'}
+                >
+                  {lang === 'tr' ? 'Satır Vurgusu' : 'Line Focus'}
+                </button>
+                <button
+                  onClick={() => setIsAntiRegressionEnabled(prev => !prev)}
+                  className={`h-8 px-3 rounded-xl text-[10px] font-bold border whitespace-nowrap ${isAntiRegressionEnabled ? 'bg-rose-500/15 border-rose-500/40 text-rose-450 font-extrabold' : 'opacity-50'}`}
+                  title={lang === 'tr' ? 'Geri dönerek okumayı zorlaştırmak için eski kelimeleri soluklaştırır' : 'Fades out past words to discourage regression'}
+                >
+                  {lang === 'tr' ? 'Anti-Regression' : 'Anti-Regression'}
+                </button>
               </div>
             </div>
           </div>
         </footer>
+      )}
+      
+      {showEyeRestOverlay && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 text-white backdrop-blur-md p-6 text-center">
+          <div className="max-w-md flex flex-col items-center gap-6">
+            <div className="h-16 w-16 rounded-full bg-indigo-650/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-2xl font-black">
+              {eyeRestCountdown}s
+            </div>
+            <h3 className="text-xl font-black tracking-tight">{t('tr_lab_eye_rest_title' as any)}</h3>
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              {lang === 'tr' 
+                ? '20-20-20 kuralı gereğince 20 saniye boyunca uzağa bakarak gözlerinizi dinlendirin. Okuma odağınızı tazelemek için dijital ekran yorgunluğu molaları önemlidir.' 
+                : 'Rest your eyes by looking at an object 20 feet away for 20 seconds, following the 20-20-20 rule. Digital eye strain breaks help restore focus.'}
+            </p>
+            <div className="flex gap-4 w-full">
+              <button
+                onClick={() => {
+                  setShowEyeRestOverlay(false);
+                  setIsPlaying(true);
+                }}
+                className="flex-1 h-11 rounded-xl border border-white/10 hover:bg-white/5 text-sm font-bold transition-all cursor-pointer"
+              >
+                {lang === 'tr' ? 'Mola Tamamlandı' : 'Rest Completed'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowEyeRestOverlay(false);
+                  setIsPlaying(true);
+                }}
+                className="flex-1 h-11 rounded-xl bg-indigo-650 hover:bg-indigo-755 text-white text-sm font-black transition-all cursor-pointer"
+              >
+                {lang === 'tr' ? 'Atla' : 'Skip'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

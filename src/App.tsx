@@ -76,6 +76,7 @@ import {
 
 const AddDocumentModal = lazy(() => import('./components/AddDocumentModal'));
 const SpeedReader = lazy(() => import('./components/SpeedReader'));
+import { extractTextFromPdf, extractTextFromDocx, extractTextFromEpub } from './utils/parsers';
 
 const APP_NAME = 'Velox';
 const APP_DESCRIPTION = 'Akıllı Okuma Asistanı';
@@ -89,7 +90,7 @@ const legacyNoteKeyForBook = (bookId: string) => `readflow_notes_text_${bookId}`
 
 const LazyPanelFallback = () => <div className="p-4 text-xs opacity-60">Yükleniyor...</div>;
 
-type AppTab = 'home' | 'progress' | 'workspace' | 'quiz' | 'guide' | 'settings' | 'about' | 'reader';
+type AppTab = 'home' | 'progress' | 'workspace' | 'quiz' | 'guide' | 'settings' | 'about' | 'reader' | 'training';
 type WorkspaceTab = 'content' | 'notes' | 'analysis' | 'actions';
 type SettingsTab = 'appearance' | 'ai' | 'data' | 'shortcuts' | 'language';
 type BookFilter = 'all' | 'active' | 'completed';
@@ -102,6 +103,7 @@ const NAV_ITEMS = [
   { tab: 'reader' as AppTab, icon: BookOpen, label: 'Okuma Alanı' },
   { tab: 'workspace' as AppTab, icon: LibraryBig, label: 'Çalışma Alanı', bookAware: true },
   { tab: 'quiz' as AppTab, icon: Brain, label: 'Hatırlama & Quiz' },
+  { tab: 'training' as AppTab, icon: Target, label: 'Training Lab' },
   { tab: 'progress' as AppTab, icon: Activity, label: 'İlerleme & Gelişim' },
   { tab: 'guide' as AppTab, icon: HelpCircle, label: 'Uygulama Rehberi' },
   { tab: 'settings' as AppTab, icon: Settings, label: 'Ayarlar' },
@@ -253,6 +255,62 @@ Now you can click the "Start Reading" button to have your first experience, and 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [stats, setStats] = useState(StorageService.getStats());
   const [prefs, setPrefs] = useState(StorageService.getPreferences());
+
+  const [trainingLevel, setTrainingLevel] = useState<string>(() => {
+    return localStorage.getItem('velox_training_level') || 'beginner';
+  });
+  const [trainingStats, setTrainingStats] = useState<any>(() => {
+    try {
+      const stored = localStorage.getItem('velox_training_stats');
+      return stored ? JSON.parse(stored) : { totalDuration: 0, totalSessions: 0, bestScore: 0, lastDate: '-' };
+    } catch {
+      return { totalDuration: 0, totalSessions: 0, bestScore: 0, lastDate: '-' };
+    }
+  });
+  const [trainingHistory, setTrainingHistory] = useState<any[]>(() => {
+    try {
+      const stored = localStorage.getItem('velox_training_history');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleSaveTrainingSession = (session: { type: string; duration: number; score: number; accuracy: number }) => {
+    const completedAt = new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const newSession = {
+      id: 'session-' + Date.now(),
+      type: session.type,
+      duration: session.duration,
+      score: session.score,
+      accuracy: session.accuracy,
+      completedAt
+    };
+
+    const newHistory = [newSession, ...trainingHistory];
+    setTrainingHistory(newHistory);
+    localStorage.setItem('velox_training_history', JSON.stringify(newHistory));
+
+    const totalDur = (trainingStats?.totalDuration || 0) + session.duration;
+    const totalSess = (trainingStats?.totalSessions || 0) + 1;
+    const bestS = Math.max(trainingStats?.bestScore || 0, session.score);
+    const newStats = {
+      totalDuration: totalDur,
+      totalSessions: totalSess,
+      bestScore: bestS,
+      lastDate: completedAt
+    };
+    setTrainingStats(newStats);
+    localStorage.setItem('velox_training_stats', JSON.stringify(newStats));
+  };
+
   const [aiStatus, setAiStatus] = useState({ enabled: false, provider: 'none', checked: false });
   const [aiProvider, setAiProvider] = useState<string>(() => localStorage.getItem('velox_ai_provider') || 'gemini');
   const [geminiApiKey, setGeminiApiKey] = useState(() => readLocalWithLegacy(GEMINI_KEY, LEGACY_GEMINI_KEY));
@@ -987,6 +1045,23 @@ Now you can click the "Start Reading" button to have your first experience, and 
               }}
               onAddDocument={() => setIsAddOpen(true)}
               showAlert={showCustomAlert}
+            />
+          )}
+
+          {activeTab === 'training' && (
+            <TrainingPage
+              trainingLevel={trainingLevel}
+              setTrainingLevel={setTrainingLevel}
+              trainingStats={trainingStats}
+              trainingHistory={trainingHistory}
+              onSaveSession={handleSaveTrainingSession}
+              surfaceClass={surfaceClass}
+              softSurfaceClass={softSurfaceClass}
+              titleClass={titleClass}
+              mutedClass={mutedClass}
+              isLightTheme={isLightTheme}
+              currentTheme={currentTheme}
+              books={books}
             />
           )}
 
@@ -7333,3 +7408,1825 @@ function EditFlashcardsModal({ bookId, bookTitle, cards, onClose, onSave, isLigh
     </div>
   );
 }
+
+// ==========================================
+// TRAINING LAB COMPONENT
+// ==========================================
+interface TrainingPageProps {
+  trainingLevel: string;
+  setTrainingLevel: (level: string) => void;
+  trainingStats: any;
+  trainingHistory: any[];
+  onSaveSession: (session: any) => void;
+  surfaceClass: string;
+  softSurfaceClass: string;
+  titleClass: string;
+  mutedClass: string;
+  isLightTheme: boolean;
+  currentTheme: any;
+  books: BookMark[];
+}
+
+function TrainingPage({
+  trainingLevel,
+  setTrainingLevel,
+  trainingStats,
+  trainingHistory,
+  onSaveSession,
+  surfaceClass,
+  softSurfaceClass,
+  titleClass,
+  mutedClass,
+  isLightTheme,
+  currentTheme,
+  books
+}: TrainingPageProps) {
+  const { t, lang } = useTranslation();
+  const [activeModule, setActiveModule] = useState<string | null>(null);
+
+  // Eye Rest manual state
+  const [manualRestActive, setManualRestActive] = useState(false);
+  const [manualRestTime, setManualRestTime] = useState(20);
+
+  // Schulte Grid states
+  const [schulteSize, setSchulteSize] = useState<number>(3);
+  const [schulteNumbers, setSchulteNumbers] = useState<number[]>([]);
+  const [schulteExpected, setSchulteExpected] = useState<number>(1);
+  const [schulteMisses, setSchulteMisses] = useState<number>(0);
+  const [schulteStartTime, setSchulteStartTime] = useState<number | null>(null);
+  const [schulteTimer, setSchulteTimer] = useState<number>(0);
+  const [schulteDone, setSchulteDone] = useState(false);
+  const [schulteWrongIdx, setSchulteWrongIdx] = useState<number | null>(null);
+
+  // Word Group Expansion states
+  const [expansionLevel, setExpansionLevel] = useState<number>(1);
+  const [expansionRound, setExpansionRound] = useState<number>(0);
+  const [expansionCorrectCount, setExpansionCorrectCount] = useState<number>(0);
+  const [expansionState, setExpansionState] = useState<'idle' | 'flashing' | 'question' | 'feedback' | 'summary'>('idle');
+  const [expansionWord, setExpansionWord] = useState<string>('');
+  const [expansionOptions, setExpansionOptions] = useState<string[]>([]);
+  const [expansionSelected, setExpansionSelected] = useState<string | null>(null);
+  const [expansionScore, setExpansionScore] = useState<number>(0);
+  const [expansionStartTime, setExpansionStartTime] = useState<number>(0);
+  const [expansionSpeed, setExpansionSpeed] = useState<number>(450); // ms
+  const [expansionTotalRounds, setExpansionTotalRounds] = useState<number>(5); // rounds
+  const [expansionFeedbackMode, setExpansionFeedbackMode] = useState<'instant' | 'end'>('instant');
+  const [expansionHistory, setExpansionHistory] = useState<{ word: string; selected: string; correct: boolean }[]>([]);
+  const [expansionCustomPools, setExpansionCustomPools] = useState<any>(null); // [lvl1, lvl2, lvl3, lvl4]
+  const [expansionUploadedFileName, setExpansionUploadedFileName] = useState<string>('');
+  const [expansionCustomText, setExpansionCustomText] = useState<string>('');
+
+  // Saccade Dot Jump states
+  const [saccadeType, setSaccadeType] = useState<'horizontal' | 'vertical' | 'diagonal' | 'random'>('horizontal');
+  const [saccadeSpeed, setSaccadeSpeed] = useState<number>(600); // ms
+  const [saccadeDuration, setSaccadeDuration] = useState<number>(30); // seconds
+  const [saccadeTimeRemaining, setSaccadeTimeRemaining] = useState<number>(30);
+  const [saccadeActiveState, setSaccadeActiveState] = useState<'idle' | 'playing'>('idle');
+  const [saccadeDotPos, setSaccadeDotPos] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
+  const [saccadeStartTime, setSaccadeStartTime] = useState<number | null>(null);
+  const [saccadeTimerInterval, setSaccadeTimerInterval] = useState<any>(null);
+  const [saccadeCountdownInterval, setSaccadeCountdownInterval] = useState<any>(null);
+
+  const saccadeTypeRef = useRef(saccadeType);
+  const saccadeSpeedRef = useRef(saccadeSpeed);
+
+  useEffect(() => {
+    saccadeTypeRef.current = saccadeType;
+  }, [saccadeType]);
+
+  useEffect(() => {
+    saccadeSpeedRef.current = saccadeSpeed;
+  }, [saccadeSpeed]);
+
+  // Diagnostic Test states
+  const [diagStep, setDiagStep] = useState<number>(0); // 0: intro, 1: reading test, 2: comprehension q1, 3: comprehension q2, 4: schulte, 5: word expansion, 6: result
+  const [diagReadStart, setDiagReadStart] = useState<number | null>(null);
+  const [diagReadWpm, setDiagReadWpm] = useState<number>(0);
+  const [diagCompCorrect, setDiagCompCorrect] = useState<number>(0);
+  const [diagSchulteTime, setDiagSchulteTime] = useState<number>(0);
+  const [diagWordScore, setDiagWordScore] = useState<number>(0);
+
+  // Quick settings
+  const [flEnabled, setFlEnabled] = useState(() => localStorage.getItem('velox_focus_line') === 'true');
+  const [arEnabled, setArEnabled] = useState(() => localStorage.getItem('velox_anti_regression') === 'true');
+  const [arIntensity, setArIntensity] = useState(() => {
+    const val = localStorage.getItem('velox_regression_intensity');
+    return val ? parseFloat(val) : 0.15;
+  });
+
+  const toggleFl = () => {
+    const newVal = !flEnabled;
+    setFlEnabled(newVal);
+    localStorage.setItem('velox_focus_line', String(newVal));
+  };
+
+  const toggleAr = () => {
+    const newVal = !arEnabled;
+    setArEnabled(newVal);
+    localStorage.setItem('velox_anti_regression', String(newVal));
+  };
+
+  const handleIntensityChange = (val: number) => {
+    setArIntensity(val);
+    localStorage.setItem('velox_regression_intensity', String(val));
+  };
+
+  // Helper lists for word group expansion
+  const trWordsList = [
+    ["odak", "bellek", "hız", "dikkat", "okuma", "göz", "zaman", "beyin", "algı", "zihin", "ışık", "akış", "bilgi", "beceri", "kod", "metin", "süre", "hedef", "vizyon", "görüş"],
+    ["aktif bellek", "hızlı okuma", "odak noktası", "akıllı asistan", "biyonik harfler", "satır takibi", "zihinsel harita", "geniş açı", "görsel algı", "hızlı kavrama", "blok okuma", "göz kası", "kelime hazinesi", "etkin öğrenme", "seçici dikkat"],
+    ["dijital göz sağlığı", "okuma hızı artırma", "geri dönerek okuma", "aktif bellek egzersizi", "odaklanma süresi uzatma", "fotoğrafik okuma tekniği", "zihinsel çeviri yapmama", "sayfa tarama yöntemi", "esnek okuma alışkanlığı", "dikkat dağınıklığı önleme"],
+    ["kavrama performansı testi uygulaması", "hızlı okuma antrenman laboratuvarı", "leitner kutusu bellek algoritması", "dijital ekran göz yorgunluğu molası", "göz kaslarını geliştirme antrenmanı", "periferik görme alanını genişletme", "seslendirme yapmadan içten okuma", "okuma hızını iki katına çıkarma"]
+  ];
+  const enWordsList = [
+    ["focus", "memory", "speed", "attention", "reading", "eye", "time", "brain", "perception", "mind", "light", "flow", "info", "skill", "code", "text", "span", "goal", "vision", "scan"],
+    ["active memory", "speed reading", "focus point", "smart assistant", "bionic reading", "line tracking", "mind map", "wide angle", "visual perception", "quick grasp", "block reading", "eye muscle", "vocabulary bank", "active learning", "selective focus"],
+    ["digital eye health", "increase reading speed", "avoid backward reading", "active memory training", "extend focus span", "photographic reading technique", "stop subvocalization habit", "page scanning method", "flexible reading habit", "prevent attention drift"],
+    ["comprehension performance test application", "speed reading training lab", "leitner box memory algorithm", "digital screen eye rest break", "eye muscle development workout", "expanding peripheral vision range", "reading silently without speaking", "double your reading speed rate"]
+  ];
+
+  // Eye rest timer effect
+  useEffect(() => {
+    if (!manualRestActive) return;
+    const interval = setInterval(() => {
+      setManualRestTime(prev => {
+        if (prev <= 1) {
+          setManualRestActive(false);
+          onSaveSession({ type: 'Eye Rest', duration: 20, score: 100, accuracy: 100 });
+          return 20;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [manualRestActive]);
+
+  // Schulte Grid init
+  const startSchulte = (size: number) => {
+    setSchulteSize(size);
+    const count = size * size;
+    const nums = Array.from({ length: count }, (_, i) => i + 1);
+    // Shuffle
+    for (let i = nums.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [nums[i], nums[j]] = [nums[j], nums[i]];
+    }
+    setSchulteNumbers(nums);
+    setSchulteExpected(1);
+    setSchulteMisses(0);
+    setSchulteDone(false);
+    setSchulteStartTime(Date.now());
+    setSchulteTimer(0);
+  };
+
+  // Schulte Grid timer effect
+  useEffect(() => {
+    if (schulteStartTime === null || schulteDone || activeModule !== 'schulte') return;
+    const interval = setInterval(() => {
+      setSchulteTimer(Math.floor((Date.now() - schulteStartTime) / 1000));
+    }, 500);
+    return () => clearInterval(interval);
+  }, [schulteStartTime, schulteDone, activeModule]);
+
+  const handleSchulteClick = (num: number, idx: number) => {
+    if (schulteDone) return;
+    if (num === schulteExpected) {
+      if (num === schulteSize * schulteSize) {
+        setSchulteDone(true);
+        const durationSec = Math.floor((Date.now() - (schulteStartTime || 0)) / 1000);
+        const score = Math.max(10, 1000 - durationSec * 10 - schulteMisses * 50);
+        const acc = Math.max(0, Math.round(((schulteSize * schulteSize) / (schulteSize * schulteSize + schulteMisses)) * 100));
+        onSaveSession({ type: `Schulte ${schulteSize}x${schulteSize}`, duration: durationSec, score, accuracy: acc });
+      } else {
+        setSchulteExpected(prev => prev + 1);
+      }
+    } else {
+      setSchulteMisses(prev => prev + 1);
+      setSchulteWrongIdx(idx);
+      setTimeout(() => setSchulteWrongIdx(null), 300);
+    }
+  };
+
+  const parseCustomTextIntoPools = (text: string) => {
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+    const words = cleanText.split(' ').filter(w => w.length > 1);
+
+    if (words.length < 5) return null;
+
+    const level1: string[] = [];
+    const level2: string[] = [];
+    const level3: string[] = [];
+    const level4: string[] = [];
+
+    const seen1 = new Set<string>();
+    words.forEach(w => {
+      const cleanW = w.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      if (cleanW.length > 2 && !seen1.has(cleanW)) {
+        seen1.add(cleanW);
+        level1.push(cleanW);
+      }
+    });
+
+    const seen2 = new Set<string>();
+    for (let i = 0; i < words.length - 1; i++) {
+      const w1 = words[i].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      const w2 = words[i+1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      if (w1.length > 1 && w2.length > 1) {
+        const phrase = `${w1} ${w2}`;
+        if (!seen2.has(phrase)) {
+          seen2.add(phrase);
+          level2.push(phrase);
+        }
+      }
+    }
+
+    const seen3 = new Set<string>();
+    for (let i = 0; i < words.length - 2; i++) {
+      const w1 = words[i].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      const w2 = words[i+1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      const w3 = words[i+2].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      if (w1.length > 1 && w2.length > 1 && w3.length > 1) {
+        const phrase = `${w1} ${w2} ${w3}`;
+        if (!seen3.has(phrase)) {
+          seen3.add(phrase);
+          level3.push(phrase);
+        }
+      }
+    }
+
+    const seen4 = new Set<string>();
+    for (let i = 0; i < words.length - 3; i++) {
+      const w1 = words[i].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      const w2 = words[i+1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      const w3 = words[i+2].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      const w4 = words[i+3].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").trim().toLowerCase();
+      if (w1.length > 1 && w2.length > 1 && w3.length > 1 && w4.length > 1) {
+        const phrase = `${w1} ${w2} ${w3} ${w4}`;
+        if (!seen4.has(phrase)) {
+          seen4.add(phrase);
+          level4.push(phrase);
+        }
+      }
+    }
+
+    return [
+      level1.length > 2 ? level1 : null,
+      level2.length > 2 ? level2 : null,
+      level3.length > 2 ? level3 : null,
+      level4.length > 2 ? level4 : null
+    ];
+  };
+
+  const processUploadedText = (text: string) => {
+    let cleanText = text;
+    try {
+      const parsedJson = JSON.parse(text);
+      if (Array.isArray(parsedJson)) {
+        cleanText = parsedJson.map(item => typeof item === 'string' ? item : JSON.stringify(item)).join(' ');
+      } else if (typeof parsedJson === 'object' && parsedJson !== null) {
+        cleanText = Object.values(parsedJson).map(val => typeof val === 'string' ? val : JSON.stringify(val)).join(' ');
+      }
+    } catch (e) {
+      if (text.includes(',') || text.includes(';')) {
+        cleanText = text.replace(/[,;]/g, ' ');
+      }
+    }
+
+    setExpansionCustomText(cleanText);
+    const parsed = parseCustomTextIntoPools(cleanText);
+    if (parsed) {
+      setExpansionCustomPools(parsed);
+    }
+  };
+
+  const handleWordExpansionFileUpload = async (file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    setExpansionUploadedFileName(file.name);
+    
+    try {
+      if (ext === 'pdf') {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const buffer = e.target?.result as ArrayBuffer;
+            const text = await extractTextFromPdf(buffer);
+            processUploadedText(text);
+          } catch (err) {
+            alert(lang === 'tr' ? 'PDF dosyası ayrıştırılamadı.' : 'Could not parse PDF file.');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (ext === 'docx') {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const buffer = e.target?.result as ArrayBuffer;
+            const text = await extractTextFromDocx(buffer);
+            processUploadedText(text);
+          } catch (err) {
+            alert(lang === 'tr' ? 'Word belgesi ayrıştırılamadı.' : 'Could not parse Word document.');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (ext === 'epub') {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const buffer = e.target?.result as ArrayBuffer;
+            const text = await extractTextFromEpub(buffer);
+            processUploadedText(text);
+          } catch (err) {
+            alert(lang === 'tr' ? 'EPUB dosyası ayrıştırılamadı.' : 'Could not parse EPUB file.');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target?.result as string;
+          processUploadedText(text);
+        };
+        reader.readAsText(file, 'utf-8');
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // Word Group Expansion round generator
+  const startWordExpansionRound = () => {
+    let wordsPool: string[] = [];
+    if (expansionCustomPools && expansionCustomPools[expansionLevel - 1] && expansionCustomPools[expansionLevel - 1].length >= 2) {
+      wordsPool = expansionCustomPools[expansionLevel - 1];
+    } else {
+      const list = lang === 'tr' ? trWordsList : enWordsList;
+      const levelIdx = Math.min(expansionLevel - 1, list.length - 1);
+      wordsPool = list[levelIdx] || list[0];
+    }
+    
+    // Choose correct
+    const correctVal = wordsPool[Math.floor(Math.random() * wordsPool.length)];
+    setExpansionWord(correctVal);
+
+    // Distractors (select up to 7 random distractors)
+    const distractors = wordsPool.filter(w => w !== correctVal);
+    const shuffledDistractors = distractors.sort(() => Math.random() - 0.5).slice(0, 7);
+    const allOptions = [correctVal, ...shuffledDistractors];
+    setExpansionOptions(allOptions.sort(() => Math.random() - 0.5));
+
+    setExpansionState('flashing');
+    setExpansionSelected(null);
+    setExpansionStartTime(Date.now());
+
+    // Use expansionSpeed state instead of flashDurations
+    setTimeout(() => {
+      setExpansionState('question');
+    }, expansionSpeed);
+  };
+
+  const handleExpansionAnswer = (ans: string) => {
+    setExpansionSelected(ans);
+    const isCorrect = ans === expansionWord;
+    if (isCorrect) {
+      setExpansionCorrectCount(prev => prev + 1);
+      setExpansionScore(prev => prev + 20);
+    }
+
+    // Record history for end-of-test summary
+    setExpansionHistory(prev => [...prev, { word: expansionWord, selected: ans, correct: isCorrect }]);
+
+    const isLastRound = expansionRound >= expansionTotalRounds - 1;
+
+    if (expansionFeedbackMode === 'instant') {
+      // Show feedback per question
+      setExpansionState('feedback');
+      setTimeout(() => {
+        if (isLastRound) {
+          const duration = Math.floor((Date.now() - expansionStartTime) / 1000) + 5;
+          const accuracy = Math.round(((expansionCorrectCount + (isCorrect ? 1 : 0)) / expansionTotalRounds) * 100);
+          onSaveSession({ type: 'Word Expansion', duration, score: expansionScore + (isCorrect ? 20 : 0), accuracy });
+          setExpansionState('summary');
+        } else {
+          setExpansionRound(prev => prev + 1);
+          startWordExpansionRound();
+        }
+      }, 1500);
+    } else {
+      // End mode: skip feedback, go directly to next round or summary
+      if (isLastRound) {
+        const duration = Math.floor((Date.now() - expansionStartTime) / 1000) + 5;
+        const accuracy = Math.round(((expansionCorrectCount + (isCorrect ? 1 : 0)) / expansionTotalRounds) * 100);
+        onSaveSession({ type: 'Word Expansion', duration, score: expansionScore + (isCorrect ? 20 : 0), accuracy });
+        setExpansionState('summary');
+      } else {
+        setExpansionRound(prev => prev + 1);
+        startWordExpansionRound();
+      }
+    }
+  };
+
+  const changeSaccadeConfig = (newSpeed: number, newType: 'horizontal' | 'vertical' | 'diagonal' | 'random') => {
+    setSaccadeTimerInterval((curr: any) => {
+      if (curr) clearInterval(curr);
+      return null;
+    });
+    
+    const interval = setInterval(() => {
+      setSaccadeDotPos((prev) => {
+        if (newType === 'horizontal') {
+          const nextX = prev.x <= 20 ? 85 : 15;
+          return { x: nextX, y: 50 };
+        } else if (newType === 'vertical') {
+          const nextY = prev.y <= 20 ? 85 : 15;
+          return { x: 50, y: nextY };
+        } else if (newType === 'diagonal') {
+          const nextX = prev.x <= 20 ? 85 : 15;
+          const nextY = prev.y <= 20 ? 85 : 15;
+          return { x: nextX, y: nextY };
+        } else {
+          return { x: 15 + Math.random() * 70, y: 15 + Math.random() * 70 };
+        }
+      });
+    }, newSpeed);
+    
+    setSaccadeTimerInterval(interval);
+  };
+
+  // Saccade Dot Jump effect
+  const startSaccade = () => {
+    setSaccadeStartTime(Date.now());
+    setSaccadeActiveState('playing');
+    setSaccadeTimeRemaining(saccadeDuration);
+    setActiveModule('saccade');
+    
+    changeSaccadeConfig(saccadeSpeed, saccadeType);
+
+    // Countdown interval
+    let secondsLeft = saccadeDuration;
+    const countInterval = setInterval(() => {
+      secondsLeft -= 1;
+      setSaccadeTimeRemaining(secondsLeft);
+      if (secondsLeft <= 0) {
+        clearInterval(countInterval);
+        setSaccadeTimerInterval((curr: any) => {
+          if (curr) clearInterval(curr);
+          return null;
+        });
+        setSaccadeCountdownInterval(null);
+        onSaveSession({ type: 'Saccade Workout', duration: saccadeDuration, score: Math.min(100, saccadeDuration * 2), accuracy: 100 });
+        setSaccadeStartTime(null);
+        setSaccadeActiveState('idle');
+      }
+    }, 1000);
+    setSaccadeCountdownInterval(countInterval);
+  };
+
+  const stopSaccade = () => {
+    setSaccadeTimerInterval((curr: any) => {
+      if (curr) clearInterval(curr);
+      return null;
+    });
+    setSaccadeCountdownInterval((curr: any) => {
+      if (curr) clearInterval(curr);
+      return null;
+    });
+    if (saccadeStartTime) {
+      const dur = Math.floor((Date.now() - saccadeStartTime) / 1000);
+      onSaveSession({ type: 'Saccade Workout', duration: dur, score: Math.min(100, dur * 2), accuracy: 100 });
+    }
+    setSaccadeStartTime(null);
+    setSaccadeActiveState('idle');
+    setActiveModule(null);
+  };
+
+  // Diagnostic Test level evaluation
+  const completeDiagnostic = (finalCompCorrect: number, finalSchulteTime: number, finalWordScore: number) => {
+    const elapsedRead = Math.floor((Date.now() - (diagReadStart || 0)) / 1000);
+    const wordCount = lang === 'tr' ? 40 : 39;
+    const computedWpm = Math.round((wordCount / Math.max(1, elapsedRead)) * 60);
+    
+    setDiagReadWpm(computedWpm);
+    setDiagCompCorrect(finalCompCorrect);
+    
+    // Determine level
+    let assigned: string = 'beginner';
+    if (computedWpm < 160 || finalSchulteTime > 30) {
+      assigned = 'beginner';
+    } else if (computedWpm >= 160 && computedWpm < 260 && finalSchulteTime <= 30) {
+      assigned = 'developing';
+    } else if (computedWpm >= 260 && computedWpm < 380 && finalSchulteTime <= 22) {
+      assigned = 'fluent';
+    } else if (computedWpm >= 380 && computedWpm < 500 && finalSchulteTime <= 16) {
+      assigned = 'speedy';
+    } else if (computedWpm >= 500 && finalSchulteTime < 12) {
+      assigned = 'advanced';
+    }
+
+    setTrainingLevel(assigned);
+    localStorage.setItem('velox_training_level', assigned);
+    
+    // Log diagnostic training session
+    onSaveSession({ 
+      type: 'Diagnostic Test', 
+      duration: elapsedRead + finalSchulteTime + 10, 
+      score: Math.round((computedWpm / 5) + (finalCompCorrect * 150) + (Math.max(0, 100 - finalSchulteTime) * 3)), 
+      accuracy: Math.round(((finalCompCorrect + (finalWordScore / 20)) / 4) * 100)
+    });
+    setDiagStep(6);
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Header Profile Dashboard */}
+      <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col md:flex-row md:items-center md:justify-between gap-6`}>
+        <div>
+          <h2 className={`text-xl font-black ${titleClass}`}>{t('nav_training' as any)}</h2>
+          <p className={`text-xs mt-1 ${mutedClass}`}>{t('tr_lab_desc' as any)}</p>
+          <div className="flex items-center gap-2 mt-3">
+            <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg">
+              {t('tr_lab_test_level_assigned' as any)} {t(`tr_lab_level_${trainingLevel}` as any)}
+            </span>
+            <button
+              onClick={() => {
+                setDiagStep(0);
+                setActiveModule('diagnostic');
+              }}
+              className="text-[10px] font-black text-indigo-500 hover:underline pl-2"
+            >
+              {t('tr_lab_start_test' as any)} →
+            </button>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:shrink-0">
+          <div className={`p-3 rounded-2xl border ${isLightTheme ? 'bg-stone-50 border-stone-200' : 'bg-zinc-900/15 border-zinc-850'}`}>
+            <span className={`text-[8px] font-black uppercase block ${mutedClass}`}>{t('tr_lab_stats_total_duration' as any)}</span>
+            <span className={`text-sm font-black mt-1 block ${titleClass}`}>{Math.round((trainingStats?.totalDuration || 0) / 60)} dk</span>
+          </div>
+          <div className={`p-3 rounded-2xl border ${isLightTheme ? 'bg-stone-50 border-stone-200' : 'bg-zinc-900/15 border-zinc-850'}`}>
+            <span className={`text-[8px] font-black uppercase block ${mutedClass}`}>{t('tr_lab_stats_total_sessions' as any)}</span>
+            <span className={`text-sm font-black mt-1 block ${titleClass}`}>{trainingStats?.totalSessions || 0}</span>
+          </div>
+          <div className={`p-3 rounded-2xl border ${isLightTheme ? 'bg-stone-50 border-stone-200' : 'bg-zinc-900/15 border-zinc-850'}`}>
+            <span className={`text-[8px] font-black uppercase block ${mutedClass}`}>{t('tr_lab_stats_best_score' as any)}</span>
+            <span className={`text-sm font-black mt-1 block ${titleClass}`}>{trainingStats?.bestScore || 0}</span>
+          </div>
+          <div className={`p-3 rounded-2xl border ${isLightTheme ? 'bg-stone-50 border-stone-200' : 'bg-zinc-900/15 border-zinc-850'}`}>
+            <span className={`text-[8px] font-black uppercase block ${mutedClass}`}>{t('tr_lab_stats_last_date' as any)}</span>
+            <span className={`text-[10px] font-black mt-1.5 block ${titleClass} truncate max-w-[100px]`}>{trainingStats?.lastDate || '-'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main workout modules or active activeModule view */}
+      {activeModule === null && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Workout Cards */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-4`}>
+              <h3 className={`text-sm font-black uppercase tracking-wider ${titleClass} border-b pb-2`}>
+                {lang === 'tr' ? 'Egzersiz Modülleri' : 'Workout Modules'}
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Eye Rest Card */}
+                <div className={`p-4 rounded-2xl border ${isLightTheme ? 'bg-stone-50/50' : 'bg-zinc-900/10'} flex flex-col justify-between gap-3`}>
+                  <div>
+                    <h4 className={`text-sm font-black ${titleClass}`}>{t('tr_lab_eye_rest_title' as any)}</h4>
+                    <p className={`text-[11px] mt-1.5 leading-relaxed ${mutedClass}`}>{t('tr_lab_eye_rest_desc' as any)}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setManualRestTime(20);
+                      setManualRestActive(true);
+                      setActiveModule('eyerest');
+                    }}
+                    className="h-8 w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black tracking-wide cursor-pointer"
+                  >
+                    {t('tr_lab_btn_start' as any)}
+                  </button>
+                </div>
+
+                {/* 2. Schulte Grid Card */}
+                <div className={`p-4 rounded-2xl border ${isLightTheme ? 'bg-stone-50/50' : 'bg-zinc-900/10'} flex flex-col justify-between gap-3`}>
+                  <div>
+                    <h4 className={`text-sm font-black ${titleClass}`}>{t('tr_lab_schulte_title' as any)}</h4>
+                    <p className={`text-[11px] mt-1.5 leading-relaxed ${mutedClass}`}>{t('tr_lab_schulte_desc' as any)}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveModule('schulte');
+                      setSchulteNumbers([]);
+                      setSchulteStartTime(null);
+                      setSchulteDone(false);
+                    }}
+                    className="h-8 w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black tracking-wide cursor-pointer"
+                  >
+                    {t('tr_lab_btn_start' as any)}
+                  </button>
+                </div>
+
+                {/* 3. Word Group Expansion Card */}
+                <div className={`p-4 rounded-2xl border ${isLightTheme ? 'bg-stone-50/50' : 'bg-zinc-900/10'} flex flex-col justify-between gap-3`}>
+                  <div>
+                    <h4 className={`text-sm font-black ${titleClass}`}>{t('tr_lab_word_expansion_title' as any)}</h4>
+                    <p className={`text-[11px] mt-1.5 leading-relaxed ${mutedClass}`}>{t('tr_lab_word_expansion_desc' as any)}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveModule('expansion');
+                      setExpansionLevel(1);
+                      setExpansionRound(0);
+                      setExpansionCorrectCount(0);
+                      setExpansionScore(0);
+                      setExpansionState('idle');
+                    }}
+                    className="h-8 w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black tracking-wide cursor-pointer"
+                  >
+                    {t('tr_lab_btn_start' as any)}
+                  </button>
+                </div>
+
+                {/* 4. Saccade Dot Jump Card */}
+                <div className={`p-4 rounded-2xl border ${isLightTheme ? 'bg-stone-50/50' : 'bg-zinc-900/10'} flex flex-col justify-between gap-3`}>
+                  <div>
+                    <h4 className={`text-sm font-black ${titleClass}`}>{t('tr_lab_saccade_title' as any)}</h4>
+                    <p className={`text-[11px] mt-1.5 leading-relaxed ${mutedClass}`}>{t('tr_lab_saccade_desc' as any)}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveModule('saccade');
+                      setSaccadeActiveState('idle');
+                      setSaccadeStartTime(null);
+                    }}
+                    className="h-8 w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black tracking-wide cursor-pointer"
+                  >
+                    {t('tr_lab_btn_start' as any)}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Settings & History */}
+          <div className="flex flex-col gap-6">
+            {/* Quick reading toggles */}
+            <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-4`}>
+              <h3 className={`text-sm font-black uppercase tracking-wider ${titleClass} border-b pb-2`}>
+                {lang === 'tr' ? 'Okuma Entegrasyonu' : 'Reading Engine Settings'}
+              </h3>
+              
+              <div className="flex flex-col gap-4 text-xs">
+                {/* FL Toggle */}
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <strong className="block">{t('tr_lab_focus_line_title' as any)}</strong>
+                    <span className={`text-[10px] leading-relaxed block mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'Okunan satırı belirginleştirir.' : 'Highlights active reading line.'}</span>
+                  </div>
+                  <button 
+                    onClick={toggleFl}
+                    className={`h-7 px-3 rounded-lg border text-[10px] font-bold ${flEnabled ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' : 'opacity-65'}`}
+                  >
+                    {flEnabled ? (lang === 'tr' ? 'Açık' : 'ON') : (lang === 'tr' ? 'Kapalı' : 'OFF')}
+                  </button>
+                </div>
+
+                {/* AR Toggle */}
+                <div className="flex items-center justify-between gap-3 border-t pt-3">
+                  <div>
+                    <strong className="block">{t('tr_lab_anti_regression_title' as any)}</strong>
+                    <span className={`text-[10px] leading-relaxed block mt-0.5 ${mutedClass}`}>{lang === 'tr' ? 'Eski kelimeleri soluklaştırır.' : 'Dims out previously read words.'}</span>
+                  </div>
+                  <button 
+                    onClick={toggleAr}
+                    className={`h-7 px-3 rounded-lg border text-[10px] font-bold ${arEnabled ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' : 'opacity-65'}`}
+                  >
+                    {arEnabled ? (lang === 'tr' ? 'Açık' : 'ON') : (lang === 'tr' ? 'Kapalı' : 'OFF')}
+                  </button>
+                </div>
+
+                {/* AR Intensity Slider */}
+                {arEnabled && (
+                  <div className="flex flex-col gap-2 border-t pt-3">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span>{lang === 'tr' ? 'Soluklaştırma Yoğunluğu' : 'Fade Intensity'}</span>
+                      <span className="font-mono font-bold">{(1 - arIntensity).toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.05"
+                      max="0.45"
+                      step="0.05"
+                      value={arIntensity}
+                      onChange={(e) => handleIntensityChange(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-stone-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* History Panel */}
+            <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-4`}>
+              <h3 className={`text-sm font-black uppercase tracking-wider ${titleClass} border-b pb-2`}>
+                {lang === 'tr' ? 'Son Antrenmanlar' : 'Workout History'}
+              </h3>
+
+              {trainingHistory.length === 0 ? (
+                <p className="text-xs opacity-65 text-center py-4 font-bold">
+                  {lang === 'tr' ? 'Henüz antrenman seansı bulunmuyor.' : 'No workout sessions completed yet.'}
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto custom-note-scrollbar pr-1">
+                  {trainingHistory.slice(0, 5).map((item) => (
+                    <div key={item.id} className={`p-2.5 rounded-xl border text-[11px] flex flex-col gap-1 ${isLightTheme ? 'bg-stone-50 border-stone-150' : 'bg-zinc-900/10 border-zinc-900'}`}>
+                      <div className="flex justify-between items-center">
+                        <strong className={titleClass}>{item.type}</strong>
+                        <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">{item.score} Pts</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] opacity-60">
+                        <span>Süre: {item.duration}s | Doğruluk: %{item.accuracy}</span>
+                        <span>{item.completedAt}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual rest overlay active view */}
+      {activeModule === 'eyerest' && (
+        <div className={`p-8 rounded-3xl border ${surfaceClass} flex flex-col items-center justify-center min-h-[300px] text-center gap-6`}>
+          <div className="h-20 w-20 rounded-full bg-indigo-600/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400 text-3xl font-black">
+            {manualRestTime}s
+          </div>
+          <h3 className={`text-lg font-black ${titleClass}`}>{t('tr_lab_eye_rest_title' as any)}</h3>
+          <p className={`text-xs max-w-md leading-relaxed ${mutedClass}`}>
+            {lang === 'tr' 
+              ? '20-20-20 kuralı gereğince 20 saniye boyunca uzağa bakarak gözlerinizi dinlendirin. Bu mola, uzun okumalarda odağınızı taze tutmanızı sağlar.' 
+              : 'Rest your eyes by looking at an object 20 feet away for 20 seconds. This break helps maintain cognitive attention during reading.'}
+          </p>
+          <div className="flex gap-3 max-w-xs w-full">
+            <button
+              onClick={() => {
+                setManualRestActive(false);
+                setActiveModule(null);
+              }}
+              className="flex-1 h-9 rounded-xl border border-stone-200 dark:border-zinc-800 text-xs font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 cursor-pointer"
+            >
+              {lang === 'tr' ? 'Atla' : 'Skip'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Schulte Grid active view */}
+      {activeModule === 'schulte' && (
+        <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-5`}>
+          <div className="flex justify-between items-center border-b pb-3">
+            <div>
+              <h3 className={`text-base font-black ${titleClass}`}>{t('tr_lab_schulte_title' as any)}</h3>
+              <p className={`text-xs mt-0.5 ${mutedClass}`}>
+                {lang === 'tr' 
+                  ? 'Sayıları 1\'den başlayarak sırayla en hızlı şekilde bulun.' 
+                  : 'Find the numbers in consecutive order starting from 1.'}
+              </p>
+            </div>
+            
+            <div className="flex gap-2 items-center">
+              {schulteNumbers.length === 0 ? (
+                <>
+                  {[3, 4, 5, 6].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSchulteSize(s)}
+                      className={`h-8 px-3 rounded-lg border text-xs font-bold transition-all ${
+                        schulteSize === s ? 'bg-indigo-650 text-white' : 'opacity-60'
+                      }`}
+                    >
+                      {s}x{s}
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setSchulteNumbers([]);
+                    setSchulteStartTime(null);
+                    setSchulteTimer(0);
+                    setSchulteDone(false);
+                  }}
+                  title={lang === 'tr' ? 'Egzersizi İptal Et' : 'Cancel Exercise'}
+                  className="h-8 w-8 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-450 hover:bg-rose-500/20 cursor-pointer flex items-center justify-center shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setActiveModule(null);
+                  setSchulteNumbers([]);
+                  setSchulteStartTime(null);
+                  setSchulteTimer(0);
+                  setSchulteDone(false);
+                }}
+                title={lang === 'tr' ? 'Eğitim Laboratuvarı\'na Dön' : 'Return to Lab'}
+                className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-stone-50 dark:hover:bg-zinc-900 cursor-pointer ml-2 shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {schulteNumbers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
+              <p className="text-xs max-w-md leading-relaxed">
+                {lang === 'tr'
+                  ? 'Schulte Grid, periferik görme alanınızı genişletmek ve okuma esnasında kelime gruplarını daha hızlı taramak için mükemmel bir antrenmandır. Seçtiğiniz boyutta tabloyu başlatın.'
+                  : 'Schulte Grid is a perfect exercise to expand your peripheral vision and scan word groups faster during reading. Start the grid at your chosen size.'}
+              </p>
+              <button
+                onClick={() => startSchulte(schulteSize)}
+                className="h-10 w-full max-w-md mt-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black"
+              >
+                {lang === 'tr' ? 'Egzersizi Başlat' : 'Start Workout'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col lg:flex-row gap-6 items-center justify-center">
+              {/* Left Status */}
+              <div className="flex flex-col gap-3 min-w-[150px]">
+                <div className="p-3 rounded-xl border text-center">
+                  <span className="text-[9px] uppercase opacity-60 block">Süre</span>
+                  <span className="text-xl font-mono font-black">{schulteTimer}s</span>
+                </div>
+                <div className="p-3 rounded-xl border text-center">
+                  <span className="text-[9px] uppercase opacity-60 block">Hedef Sayı</span>
+                  <span className="text-xl font-mono font-black text-indigo-500">{schulteExpected}</span>
+                </div>
+                <div className="p-3 rounded-xl border text-center">
+                  <span className="text-[9px] uppercase opacity-60 block">Hata Sayısı</span>
+                  <span className="text-xl font-mono font-black text-rose-500">{schulteMisses}</span>
+                </div>
+              </div>
+
+              {/* Schulte Grid */}
+              {!schulteDone ? (
+                <div 
+                  className="grid gap-2 p-2 rounded-2xl border"
+                  style={{
+                    gridTemplateColumns: `repeat(${schulteSize}, minmax(0, 1fr))`,
+                    width: 'min(360px, 85vw)',
+                    height: 'min(360px, 85vw)'
+                  }}
+                >
+                  {schulteNumbers.map((num, idx) => {
+                    const isWrong = schulteWrongIdx === idx;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleSchulteClick(num, idx)}
+                        className={`rounded-xl border font-bold text-sm md:text-base grid place-items-center transition-all ${
+                          isWrong 
+                            ? 'bg-rose-500/20 border-rose-500 text-rose-400 scale-95' 
+                            : 'bg-zinc-900/10 hover:bg-zinc-900/30 active:scale-95'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-8 rounded-2xl border max-w-sm text-center flex flex-col gap-4">
+                  <h4 className="text-lg font-black text-emerald-500">{lang === 'tr' ? 'Tebrikler!' : 'Well Done!'}</h4>
+                  <p className="text-xs">
+                    {lang === 'tr' ? (
+                      <>
+                        {schulteSize}x{schulteSize} Schulte tablosunu <strong className="font-extrabold">{schulteTimer} saniyede</strong> ve <strong className="font-extrabold">{schulteMisses} hata</strong> ile tamamladınız.
+                      </>
+                    ) : (
+                      <>
+                        You completed the {schulteSize}x{schulteSize} Schulte grid in <strong className="font-extrabold">{schulteTimer} seconds</strong> with <strong className="font-extrabold">{schulteMisses} errors</strong>.
+                      </>
+                    )}
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => startSchulte(schulteSize)}
+                      className="flex-1 h-9 rounded-xl bg-indigo-650 text-white text-xs font-bold"
+                    >
+                      {lang === 'tr' ? 'Tekrar Çöz' : 'Solve Again'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSchulteNumbers([]);
+                        setSchulteStartTime(null);
+                        setSchulteTimer(0);
+                        setSchulteDone(false);
+                      }}
+                      className="flex-1 h-9 rounded-xl border text-xs font-bold"
+                    >
+                      {lang === 'tr' ? 'Egzersiz Seçimi' : 'Back to Selection'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Word Expansion active view */}
+      {activeModule === 'expansion' && (
+        <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-5`}>
+          <div className="flex justify-between items-center border-b pb-3">
+            <div>
+              <h3 className={`text-base font-black ${titleClass}`}>{t('tr_lab_word_expansion_title' as any)}</h3>
+              <p className={`text-xs mt-0.5 ${mutedClass}`}>
+                {lang === 'tr' 
+                  ? 'Flaşörde çok kısa süre gösterilecek kelime grubunu yakalayıp seçeneklerden bulun.' 
+                  : 'Perceive the word group shown in the flasher and choose the correct option.'}
+              </p>
+            </div>
+            
+            <div className="flex gap-2 items-center">
+              {expansionState === 'idle' ? (
+                <>
+                  {[1, 2, 3, 4].map((l) => (
+                    <button
+                      key={l}
+                      onClick={() => {
+                        setExpansionLevel(l);
+                        setExpansionRound(0);
+                        setExpansionCorrectCount(0);
+                        setExpansionScore(0);
+                        setExpansionState('idle');
+                      }}
+                      className={`h-8 px-3 rounded-lg border text-xs font-bold transition-all ${
+                        expansionLevel === l ? 'bg-indigo-650 text-white' : 'opacity-60'
+                      }`}
+                    >
+                      Lvl {l}
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setExpansionState('idle');
+                    setExpansionRound(0);
+                    setExpansionCorrectCount(0);
+                    setExpansionScore(0);
+                  }}
+                  title={lang === 'tr' ? 'Egzersizi İptal Et' : 'Cancel Exercise'}
+                  className="h-8 w-8 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-450 hover:bg-rose-500/20 cursor-pointer flex items-center justify-center shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setActiveModule(null);
+                  setExpansionState('idle');
+                  setExpansionRound(0);
+                  setExpansionCorrectCount(0);
+                  setExpansionScore(0);
+                }}
+                title={lang === 'tr' ? 'Eğitim Laboratuvarı\'na Dön' : 'Return to Lab'}
+                className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-stone-50 dark:hover:bg-zinc-900 cursor-pointer ml-2 shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center justify-center py-8 gap-6">
+            {expansionState === 'idle' && (
+              <div className="w-full max-w-4xl mx-auto py-4 text-xs">
+                <p className="text-xs text-center opacity-85 mb-6">
+                  {lang === 'tr' ? (
+                    <>
+                      {expansionLevel}. seviyede kelimeler <strong className="font-extrabold">{Math.max(1, 6 - expansionLevel)}</strong> kelimelik bloklar halinde flaş edilecektir.
+                    </>
+                  ) : (
+                    <>
+                      In level {expansionLevel}, words will be flashed in blocks of <strong className="font-extrabold">{Math.max(1, 6 - expansionLevel)}</strong> words.
+                    </>
+                  )}
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+                  {/* Left Column: Document Upload & Paste Section */}
+                  <div className="flex flex-col gap-4 h-full">
+                    <span className="font-bold text-sm border-b pb-2 text-indigo-500">{lang === 'tr' ? '1. Kelime Kaynağı' : '1. Word Source'}</span>
+                    <div className="flex flex-col p-4 rounded-2xl border bg-black/5 dark:bg-white/5 flex-1 min-h-[380px] gap-3">
+                      <div className="flex flex-col gap-3">
+                        {/* Select from existing library documents */}
+                        {books && books.length > 0 && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold opacity-80">{lang === 'tr' ? 'Mevcut Kütüphane Belgelerinden Seç:' : 'Select from Existing Library:'}</span>
+                            <select
+                              onChange={(e) => {
+                                const selectedBook = books.find(b => b.id === e.target.value);
+                                if (selectedBook) {
+                                  setExpansionUploadedFileName(selectedBook.title);
+                                  processUploadedText(selectedBook.content);
+                                } else {
+                                  setExpansionUploadedFileName('');
+                                  setExpansionCustomText('');
+                                  setExpansionCustomPools(null);
+                                }
+                              }}
+                              className="w-full p-2 rounded-lg text-[10px] border bg-stone-100 dark:bg-zinc-800 text-indigo-500 font-semibold cursor-pointer outline-none focus:border-indigo-500"
+                            >
+                              <option value="">-- {lang === 'tr' ? 'Bir belge seçin' : 'Select a document'} --</option>
+                              {books.map(b => (
+                                <option key={b.id} value={b.id}>{b.title}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="border-t my-0.5 opacity-20" />
+
+                        {/* Premium Drag & Drop Upload Picker */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold opacity-80">
+                            {lang === 'tr' ? 'Yeni Belge Yükle:' : 'Upload New Document:'}
+                          </span>
+                          <label className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-500/30 hover:border-indigo-500 rounded-xl p-3 bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer transition-all gap-1 group">
+                            <UploadCloud className="w-6 h-6 text-indigo-400 group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-black text-indigo-400 group-hover:text-indigo-500">
+                              {lang === 'tr' ? 'Dosya Seçin veya Sürükleyin' : 'Select or Drag File'}
+                            </span>
+                            <span className="text-[8px] opacity-60">
+                              .txt, .md, .pdf, .docx, .epub, .json, .csv
+                            </span>
+                            <input
+                              type="file"
+                              accept=".txt,.md,.pdf,.docx,.epub,.json,.csv"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  handleWordExpansionFileUpload(file);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        {expansionUploadedFileName && (
+                          <p className="text-[10px] text-emerald-500 font-bold leading-tight">
+                            ✓ {lang === 'tr' ? `Aktif dosya: ${expansionUploadedFileName}` : `Active file: ${expansionUploadedFileName}`}
+                          </p>
+                        )}
+
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold opacity-80">{lang === 'tr' ? 'Veya metnini doğrudan buraya yapıştır:' : 'Or paste your text directly here:'}</span>
+                          <textarea
+                            value={expansionCustomText}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setExpansionCustomText(val);
+                              const parsed = parseCustomTextIntoPools(val);
+                              if (parsed) {
+                                setExpansionCustomPools(parsed);
+                              } else if (!val.trim()) {
+                                setExpansionCustomPools(null);
+                              }
+                            }}
+                            placeholder={lang === 'tr' ? 'Egzersizde kullanılmasını istediğiniz kitap özetini, makaleyi veya kelimeleri buraya yazın/yapıştırın...' : 'Type or paste the book summary, article, or word lists you want to use here...'}
+                            className="w-full h-14 p-2 rounded-lg text-[10px] border bg-black/10 dark:bg-white/10 resize-none outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-auto pt-2">
+                        {expansionCustomPools ? (
+                          <p className="text-[9px] text-indigo-400 font-semibold leading-tight">
+                            {lang === 'tr' 
+                              ? `✓ Metin başarıyla işlendi! (L1: ${expansionCustomPools[0]?.length || 0} kelime, L2: ${expansionCustomPools[1]?.length || 0} öbek, L3: ${expansionCustomPools[2]?.length || 0} öbek, L4: ${expansionCustomPools[3]?.length || 0} öbek)`
+                              : `✓ Text parsed successfully! (L1: ${expansionCustomPools[0]?.length || 0} words, L2: ${expansionCustomPools[1]?.length || 0} phrases, L3: ${expansionCustomPools[2]?.length || 0} phrases, L4: ${expansionCustomPools[3]?.length || 0} phrases)`}
+                          </p>
+                        ) : (
+                          <p className="text-[9px] opacity-60">
+                            {lang === 'tr' 
+                              ? 'Belge yüklenmezse varsayılan kelime havuzu kullanılacaktır.'
+                              : 'If no document is loaded, default word pool will be used.'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Word Group Expansion settings */}
+                  <div className="flex flex-col gap-4 h-full">
+                    <span className="font-bold text-sm border-b pb-2 text-indigo-500">{lang === 'tr' ? '2. Egzersiz Ayarları' : '2. Workout Settings'}</span>
+                    <div className="flex flex-col p-4 rounded-2xl border bg-black/5 dark:bg-white/5 flex-1 min-h-[380px] gap-4">
+                      <div className="flex flex-col gap-4">
+                        {/* Flash Speed Adjustment */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold">{lang === 'tr' ? 'Flaşör Gösterim Süresi (ms)' : 'Flash Duration (ms)'}</span>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min="50"
+                                max="3000"
+                                value={expansionSpeed}
+                                onChange={(e) => setExpansionSpeed(Math.max(50, parseInt(e.target.value) || 450))}
+                                className="w-16 px-1.5 py-0.5 border rounded text-center bg-black/10 dark:bg-white/10 font-bold font-mono text-indigo-400"
+                              />
+                              <span>ms</span>
+                            </div>
+                          </div>
+                          <input
+                            type="range"
+                            min="50"
+                            max="2000"
+                            step="1"
+                            value={expansionSpeed}
+                            onChange={(e) => setExpansionSpeed(parseInt(e.target.value))}
+                            className="w-full h-1 bg-stone-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                          />
+                          <span className={`text-[10px] ${mutedClass}`}>
+                            {lang === 'tr' ? 'Kelimenin ekranda kalacağı milisaniye cinsinden süre. Düşük değerler algı hızınızı zorlar.' : 'Flashing duration in ms. Lower values challenge your cognitive speed.'}
+                          </span>
+                        </div>
+
+                        {/* Round Count Adjustment */}
+                        <div className="flex flex-col gap-2 border-t pt-3">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold">{lang === 'tr' ? 'Soru Sayısı (Raunt)' : 'Number of Rounds'}</span>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min="2"
+                                max="50"
+                                value={expansionTotalRounds}
+                                onChange={(e) => setExpansionTotalRounds(Math.max(2, parseInt(e.target.value) || 5))}
+                                className="w-16 px-1.5 py-0.5 border rounded text-center bg-black/10 dark:bg-white/10 font-bold font-mono text-indigo-400"
+                              />
+                              <span>round</span>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            {[5, 10, 15, 20].map((r) => (
+                              <button
+                                key={r}
+                                onClick={() => setExpansionTotalRounds(r)}
+                                className={`h-8 rounded-lg border text-xs font-bold transition-all ${
+                                  expansionTotalRounds === r ? 'bg-indigo-600 text-white' : 'opacity-70'
+                                }`}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Feedback Mode Toggle */}
+                        <div className="flex flex-col gap-2 border-t pt-3">
+                          <span className="font-bold">{lang === 'tr' ? 'Geri Bildirim Modu' : 'Feedback Mode'}</span>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => setExpansionFeedbackMode('instant')}
+                              className={`h-9 rounded-xl border text-xs font-bold transition-all ${
+                                expansionFeedbackMode === 'instant' ? 'bg-indigo-600 text-white' : 'opacity-70'
+                              }`}
+                            >
+                              {lang === 'tr' ? 'Anlık Göster' : 'Instant'}
+                            </button>
+                            <button
+                              onClick={() => setExpansionFeedbackMode('end')}
+                              className={`h-9 rounded-xl border text-xs font-bold transition-all ${
+                                expansionFeedbackMode === 'end' ? 'bg-indigo-600 text-white' : 'opacity-70'
+                              }`}
+                            >
+                              {lang === 'tr' ? 'Sonunda Göster' : 'At End'}
+                            </button>
+                          </div>
+                          <span className={`text-[10px] ${mutedClass}`}>
+                            {expansionFeedbackMode === 'instant'
+                              ? (lang === 'tr' ? 'Her cevaptan sonra doğru/yanlış anında gösterilir.' : 'Correct/incorrect shown immediately after each answer.')
+                              : (lang === 'tr' ? 'Cevaplar arasında duraklamadan geçilir, sonuçlar test bittiğinde topluca gösterilir.' : 'No pause between answers; results shown together at the end.')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Start Button */}
+                      <button
+                        onClick={() => {
+                          setExpansionRound(0);
+                          setExpansionCorrectCount(0);
+                          setExpansionScore(0);
+                          setExpansionHistory([]);
+                          setExpansionState('flashing');
+                          startWordExpansionRound();
+                        }}
+                        className="h-10 w-full mt-auto rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-lg shadow-indigo-600/10 active:scale-98 transition-all"
+                      >
+                        {lang === 'tr' ? 'Egzersizi Başlat' : 'Start Workout'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {expansionState === 'flashing' && (
+              <div className="h-32 w-full max-w-md border rounded-2xl flex items-center justify-center bg-black/5 dark:bg-white/5 relative">
+                <span className="text-2xl font-black text-indigo-500 tracking-wide animate-pulse">
+                  {expansionWord}
+                </span>
+              </div>
+            )}
+
+            {expansionState === 'question' && (
+              <div className="w-full max-w-md flex flex-col gap-4">
+                <div className="h-16 w-full border rounded-2xl flex items-center justify-center bg-black/5 dark:bg-white/5">
+                  <span className="text-xs opacity-60">{lang === 'tr' ? 'Hangi kelime grubunu gördünüz?' : 'Which word group did you see?'}</span>
+                </div>
+
+                {/* Round indicator for end mode */}
+                {expansionFeedbackMode === 'end' && (
+                  <p className="text-[10px] opacity-50 text-center">
+                    {lang === 'tr' ? 'Soru' : 'Question'} {expansionRound + 1} / {expansionTotalRounds}
+                  </p>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {expansionOptions.map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => handleExpansionAnswer(opt)}
+                      className={`p-3 rounded-xl border text-xs font-bold text-center transition-all hover:bg-indigo-50/20 active:scale-95`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {expansionState === 'feedback' && (
+              <div className="w-full max-w-md flex flex-col items-center gap-4">
+                <div className="h-16 w-full border rounded-2xl flex items-center justify-center bg-black/5 dark:bg-white/5">
+                  <span className="text-sm font-black">{expansionWord}</span>
+                </div>
+                
+                <span className={`text-xs font-black uppercase ${
+                  expansionSelected === expansionWord ? 'text-emerald-500' : 'text-rose-500'
+                }`}>
+                  {expansionSelected === expansionWord 
+                    ? (lang === 'tr' ? 'Doğru!' : 'Correct!') 
+                    : (lang === 'tr' ? 'Yanlış!' : 'Incorrect!')}
+                </span>
+                
+                <p className="text-[10px] opacity-60">
+                  Round: {expansionRound + 1} / {expansionTotalRounds} | {lang === 'tr' ? 'Doğru' : 'Correct'}: {expansionCorrectCount}
+                </p>
+              </div>
+            )}
+
+            {/* Summary Screen */}
+            {expansionState === 'summary' && (
+              <div className="w-full max-w-lg flex flex-col items-center gap-5">
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-lg font-black">{lang === 'tr' ? 'Egzersiz Tamamlandı!' : 'Workout Complete!'}</span>
+                  <p className="text-xs opacity-70">
+                    {lang === 'tr'
+                      ? `${expansionHistory.filter(h => h.correct).length} / ${expansionHistory.length} doğru cevap`
+                      : `${expansionHistory.filter(h => h.correct).length} / ${expansionHistory.length} correct answers`}
+                  </p>
+                </div>
+
+                {/* Score bar */}
+                <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-700"
+                    style={{ width: `${expansionHistory.length > 0 ? Math.round((expansionHistory.filter(h => h.correct).length / expansionHistory.length) * 100) : 0}%` }}
+                  />
+                </div>
+
+                {/* Answer history table */}
+                <div className="w-full border rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-12 text-[10px] font-bold uppercase px-3 py-2 border-b bg-black/5 dark:bg-white/5">
+                    <span className="col-span-1">#</span>
+                    <span className="col-span-4">{lang === 'tr' ? 'Doğru Cevap' : 'Correct'}</span>
+                    <span className="col-span-4">{lang === 'tr' ? 'Seçiminiz' : 'Your Answer'}</span>
+                    <span className="col-span-3 text-right">{lang === 'tr' ? 'Sonuç' : 'Result'}</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {expansionHistory.map((h, i) => (
+                      <div key={i} className={`grid grid-cols-12 text-[10px] px-3 py-1.5 border-b last:border-b-0 ${h.correct ? '' : 'bg-rose-500/5'}`}>
+                        <span className="col-span-1 font-bold opacity-50">{i + 1}</span>
+                        <span className="col-span-4 font-bold">{h.word}</span>
+                        <span className={`col-span-4 ${h.correct ? 'text-emerald-500' : 'text-rose-500'} font-bold`}>{h.selected}</span>
+                        <span className={`col-span-3 text-right font-black ${h.correct ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {h.correct ? '✓' : '✗'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 mt-2">
+                  <button
+                    onClick={() => {
+                      setExpansionRound(0);
+                      setExpansionCorrectCount(0);
+                      setExpansionScore(0);
+                      setExpansionHistory([]);
+                      setExpansionState('flashing');
+                      startWordExpansionRound();
+                    }}
+                    className="h-9 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
+                  >
+                    {lang === 'tr' ? 'Tekrar Başlat' : 'Restart'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExpansionState('idle');
+                      setExpansionRound(0);
+                      setExpansionHistory([]);
+                    }}
+                    className="h-9 px-5 rounded-xl border text-xs font-bold hover:bg-stone-50 dark:hover:bg-zinc-900"
+                  >
+                    {lang === 'tr' ? 'Ayarlara Dön' : 'Back to Settings'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Saccade Dot Jump active view */}
+      {activeModule === 'saccade' && (
+        <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-5`}>
+          <div className="flex justify-between items-center border-b pb-3">
+            <div>
+              <h3 className={`text-base font-black ${titleClass}`}>{t('tr_lab_saccade_title' as any)}</h3>
+              <p className={`text-xs mt-0.5 ${mutedClass}`}>{t('tr_lab_saccade_desc' as any)}</p>
+            </div>
+            
+            <div className="flex gap-2 items-center">
+              {/* Type Selection always visible and switchable on-the-fly */}
+              <div className="flex gap-1.5 mr-2">
+                {['horizontal', 'vertical', 'diagonal', 'random'].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      setSaccadeType(type as any);
+                      if (saccadeActiveState === 'playing') {
+                        changeSaccadeConfig(saccadeSpeed, type as any);
+                      }
+                    }}
+                    className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition-all capitalize ${
+                      saccadeType === type ? 'bg-indigo-650 text-white' : 'opacity-60'
+                    }`}
+                  >
+                    {type === 'horizontal' ? (lang === 'tr' ? 'Yatay' : 'Horizontal') :
+                     type === 'vertical' ? (lang === 'tr' ? 'Dikey' : 'Vertical') :
+                     type === 'diagonal' ? (lang === 'tr' ? 'Çapraz' : 'Diagonal') :
+                     (lang === 'tr' ? 'Rastgele' : 'Random')}
+                  </button>
+                ))}
+              </div>
+
+              {saccadeActiveState === 'playing' && (
+                <button
+                  onClick={() => {
+                    if (saccadeTimerInterval) clearInterval(saccadeTimerInterval);
+                    if (saccadeCountdownInterval) clearInterval(saccadeCountdownInterval);
+                    setSaccadeTimerInterval(null);
+                    setSaccadeCountdownInterval(null);
+                    setSaccadeStartTime(null);
+                    setSaccadeActiveState('idle');
+                  }}
+                  title={lang === 'tr' ? 'Egzersizi İptal Et' : 'Cancel Exercise'}
+                  className="h-8 w-8 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-450 hover:bg-rose-500/20 cursor-pointer flex items-center justify-center shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={stopSaccade}
+                title={lang === 'tr' ? 'Eğitim Laboratuvarı\'na Dön' : 'Return to Lab'}
+                className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-stone-50 dark:hover:bg-zinc-900 cursor-pointer ml-2 shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {saccadeActiveState === 'idle' ? (
+            <div className="flex flex-col gap-6 max-w-md mx-auto w-full py-4 text-xs">
+              {/* Speed Adjustment (Slider + Custom Value input) */}
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold">{lang === 'tr' ? 'Dot Hızı (milisaniye)' : 'Dot Speed (ms)'}</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="50"
+                      max="3000"
+                      value={saccadeSpeed}
+                      onChange={(e) => setSaccadeSpeed(Math.max(50, parseInt(e.target.value) || 600))}
+                      className="w-16 px-1.5 py-0.5 border rounded text-center bg-black/10 dark:bg-white/10 font-bold font-mono text-indigo-400"
+                    />
+                    <span>ms</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="2000"
+                  step="1"
+                  value={saccadeSpeed}
+                  onChange={(e) => setSaccadeSpeed(parseInt(e.target.value))}
+                  className="w-full h-1 bg-stone-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+                <span className={`text-[10px] ${mutedClass}`}>
+                  {lang === 'tr' ? 'Düşük milisaniye değerleri hedefin daha hızlı sıçramasını sağlar.' : 'Lower values make the target jump faster.'}
+                </span>
+              </div>
+
+              {/* Duration Select (Presets + Custom Value input) */}
+              <div className="flex flex-col gap-2 border-t pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold">{lang === 'tr' ? 'Egzersiz Süresi (Saniye)' : 'Workout Duration (Seconds)'}</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="5"
+                      max="600"
+                      value={saccadeDuration}
+                      onChange={(e) => setSaccadeDuration(Math.max(5, parseInt(e.target.value) || 30))}
+                      className="w-16 px-1.5 py-0.5 border rounded text-center bg-black/10 dark:bg-white/10 font-bold font-mono text-indigo-400"
+                    />
+                    <span>s</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[15, 30, 60, 120].map((dur) => (
+                    <button
+                      key={dur}
+                      onClick={() => setSaccadeDuration(dur)}
+                      className={`h-8 rounded-lg border text-xs font-bold transition-all ${
+                        saccadeDuration === dur ? 'bg-indigo-650 text-white' : 'opacity-70'
+                      }`}
+                    >
+                      {dur}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Start button */}
+              <button
+                onClick={startSaccade}
+                className="h-10 w-full mt-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black"
+              >
+                {lang === 'tr' ? 'Egzersizi Başlat' : 'Start Workout'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-full h-80 rounded-2xl border bg-black/5 dark:bg-white/5 relative overflow-hidden">
+                {/* Eye jump target dot */}
+                <div 
+                  className="w-4 h-4 rounded-full bg-indigo-600 absolute transition-all duration-100 shadow-lg shadow-indigo-600/50"
+                  style={{
+                    left: `${saccadeDotPos.x}%`,
+                    top: `${saccadeDotPos.y}%`,
+                    transform: 'translate(-50%, -50%)'
+                  }}
+                />
+
+                {/* Remaining Time Overlay */}
+                <div className="absolute top-3 left-3 px-3 py-1 rounded-lg bg-black/40 text-[10px] font-bold text-white backdrop-blur">
+                  {lang === 'tr' ? 'Kalan Süre' : 'Time Left'}: {saccadeTimeRemaining}s
+                </div>
+              </div>
+
+              {/* Dynamic Speed Controller while playing */}
+              <div className="w-full max-w-md flex flex-col gap-2 mt-2 px-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold opacity-80">{lang === 'tr' ? 'Canlı Hız Ayarı (ms):' : 'Live Speed Adjust (ms):'}</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="50"
+                      max="3000"
+                      value={saccadeSpeed}
+                      onChange={(e) => {
+                        const val = Math.max(50, parseInt(e.target.value) || 600);
+                        setSaccadeSpeed(val);
+                        changeSaccadeConfig(val, saccadeType);
+                      }}
+                      className="w-16 px-1.5 py-0.5 border rounded text-center bg-black/10 dark:bg-white/10 font-bold font-mono text-indigo-400"
+                    />
+                    <span>ms</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="2000"
+                  step="1"
+                  value={saccadeSpeed}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setSaccadeSpeed(val);
+                    changeSaccadeConfig(val, saccadeType);
+                  }}
+                  className="w-full h-1 bg-stone-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+              </div>
+
+              <p className="text-[10px] text-amber-500 max-w-lg leading-relaxed text-center font-bold">
+                {t('tr_lab_saccade_safety_alert' as any)}
+              </p>
+
+              <button
+                onClick={stopSaccade}
+                className="h-10 px-6 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold animate-pulse"
+              >
+                {t('tr_lab_btn_stop' as any)}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Diagnostic Assessment Test active view */}
+      {activeModule === 'diagnostic' && (
+        <div className={`p-6 rounded-3xl border ${surfaceClass} flex flex-col gap-5`}>
+          <div className="flex justify-between items-center border-b pb-3">
+            <h3 className={`text-base font-black ${titleClass}`}>
+              {t('tr_lab_start_test' as any)}
+            </h3>
+            <button
+              onClick={() => {
+                setActiveModule(null);
+                setDiagStep(0);
+              }}
+              className="h-8 px-3 rounded-lg border text-xs font-bold hover:bg-stone-50 dark:hover:bg-zinc-900 cursor-pointer"
+            >
+              {lang === 'tr' ? 'Testi Kapat' : 'Cancel Test'}
+            </button>
+          </div>
+
+          {/* Diagnostic Step 0: Intro */}
+          {diagStep === 0 && (
+            <div className="flex flex-col gap-4 py-4">
+              <p className="text-xs leading-relaxed">
+                {lang === 'tr' 
+                  ? 'Bu test, güncel okuma hızınızı (WPM), kavrama doğruluğunuzu ve Schulte grid sayı tarama hızınızı ölçerek başlangıç seviyenizi belirler. Test yaklaşık 2 dakika sürer.'
+                  : 'This assessment evaluates your current reading speed (WPM), comprehension accuracy, and Schulte grid scan time to establish your baseline level. Takes about 2 minutes.'}
+              </p>
+              <button
+                onClick={() => {
+                  setDiagStep(1);
+                  setDiagReadStart(Date.now());
+                }}
+                className="h-10 w-fit px-6 rounded-xl bg-indigo-650 hover:bg-indigo-755 text-white text-xs font-bold"
+              >
+                {t('tr_lab_test_start_btn' as any)}
+              </button>
+            </div>
+          )}
+
+          {/* Diagnostic Step 1: Reading Speed Test */}
+          {diagStep === 1 && (
+            <div className="flex flex-col gap-4 py-4">
+              <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 w-fit px-2 py-0.5 rounded">Adım 1: Okuma Hızı</span>
+              <p className="text-sm font-semibold leading-loose p-4 rounded-xl border bg-black/5 dark:bg-white/5 select-none">
+                {lang === 'tr' 
+                  ? 'Hızlı okuma, göz kaslarının eğitilmesi ve kelimelerin tek tek seslendirilmesi yerine bütünsel olarak algılanması sürecidir. Gözümüz satır üzerinde akarken duraksamalar yaşar. RSVP ve ORP gibi teknikler bu duraksama sürelerini en aza indirerek beynin anlama kapasitesini artırır.'
+                  : 'Speed reading is a method of educating your eye muscles to perceive word groups instantly, rather than subvocalizing each word individually. RSVP and ORP visual techniques minimize eye regressions and maximize the cognitive comprehension capacity of the human brain.'}
+              </p>
+              <button
+                onClick={() => {
+                  setDiagStep(2);
+                }}
+                className="h-10 w-fit px-6 rounded-xl bg-indigo-650 hover:bg-indigo-755 text-white text-xs font-bold"
+              >
+                {lang === 'tr' ? 'Okumayı Bitirdim' : 'Completed Reading'}
+              </button>
+            </div>
+          )}
+
+          {/* Diagnostic Step 2: Q1 */}
+          {diagStep === 2 && (
+            <div className="flex flex-col gap-4 py-4">
+              <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 w-fit px-2 py-0.5 rounded">Adım 2: Kavrama Testi - Soru 1</span>
+              <p className="text-xs font-bold">{lang === 'tr' ? 'Hızlı okuma sürecinde beynin anlama kapasitesini artıran görsel yöntemler hangileridir?' : 'Which visual techniques maximize cognitive comprehension capacity in speed reading?'}</p>
+              <div className="grid grid-cols-1 gap-2.5 max-w-md">
+                {[
+                  lang === 'tr' ? 'RSVP ve ORP vizör teknikleri' : 'RSVP and ORP visual techniques',
+                  lang === 'tr' ? 'Sesli okuma yöntemleri' : 'Auditory vocalization methods',
+                  lang === 'tr' ? 'Sadece göz egzersizleri' : 'Basic eye workouts only'
+                ].map((opt, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      if (idx === 0) setDiagCompCorrect(prev => prev + 1);
+                      setDiagStep(3);
+                    }}
+                    className="p-3 rounded-xl border text-xs font-semibold text-left hover:bg-indigo-50/15"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Diagnostic Step 3: Q2 */}
+          {diagStep === 3 && (
+            <div className="flex flex-col gap-4 py-4">
+              <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 w-fit px-2 py-0.5 rounded">Adım 2: Kavrama Testi - Soru 2</span>
+              <p className="text-xs font-bold">{lang === 'tr' ? 'Hızlı okuma için göz kaslarının nasıl eğitilmesi önerilir?' : 'How is reading speed improved according to the passage?'}</p>
+              <div className="grid grid-cols-1 gap-2.5 max-w-md">
+                {[
+                  lang === 'tr' ? 'Kelimeleri tek tek içimizden seslendirerek' : 'By vocalizing each word individually inside',
+                  lang === 'tr' ? 'Kelimeleri bütünsel olarak algılayıp duraksamaları azaltarak' : 'By perceiving word blocks and minimizing fixation pauses',
+                  lang === 'tr' ? 'Uzun süre ara vermeden okuyarak' : 'By reading without taking rest breaks'
+                ].map((opt, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      if (idx === 1) setDiagCompCorrect(prev => prev + 1);
+                      setDiagStep(4);
+                      startSchulte(3); // start schulte inside diagnostic
+                    }}
+                    className="p-3 rounded-xl border text-xs font-semibold text-left hover:bg-indigo-50/15"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Diagnostic Step 4: Schulte Grid */}
+          {diagStep === 4 && (
+            <div className="flex flex-col gap-4 py-4">
+              <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 w-fit px-2 py-0.5 rounded">Adım 3: Sayı Taraması (Schulte 3x3)</span>
+              
+              <div className="flex flex-col items-center gap-4">
+                {!schulteDone ? (
+                  <div 
+                    className="grid gap-2 p-2 rounded-2xl border"
+                    style={{
+                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                      width: '260px',
+                      height: '260px'
+                    }}
+                  >
+                    {schulteNumbers.map((num, idx) => {
+                      const isWrong = schulteWrongIdx === idx;
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            if (num === schulteExpected) {
+                              if (num === 9) {
+                                setSchulteDone(true);
+                                const dur = Math.floor((Date.now() - (schulteStartTime || 0)) / 1000);
+                                setDiagSchulteTime(dur);
+                                setTimeout(() => {
+                                  setDiagStep(5);
+                                  setExpansionLevel(2);
+                                  setExpansionRound(0);
+                                  setExpansionCorrectCount(0);
+                                  setExpansionScore(0);
+                                  setExpansionState('flashing');
+                                  startWordExpansionRound();
+                                }, 1500);
+                              } else {
+                                setSchulteExpected(prev => prev + 1);
+                              }
+                            } else {
+                              setSchulteWrongIdx(idx);
+                              setTimeout(() => setSchulteWrongIdx(null), 300);
+                            }
+                          }}
+                          className={`rounded-xl border font-bold text-sm grid place-items-center transition-all ${
+                            isWrong 
+                              ? 'bg-rose-500/20 border-rose-500 text-rose-400 scale-95' 
+                              : 'bg-zinc-900/10 hover:bg-zinc-900/30'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 text-xs font-bold text-emerald-500">
+                    {lang === 'tr' ? 'Tamamlandı! Sonraki adıma geçiliyor...' : 'Completed! Proceeding to next step...'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Diagnostic Step 5: Word Expansion */}
+          {diagStep === 5 && (
+            <div className="flex flex-col gap-4 py-4">
+              <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 w-fit px-2 py-0.5 rounded">Adım 4: Kelime Algılama Genişliği</span>
+              
+              <div className="flex flex-col items-center gap-4">
+                {expansionState === 'flashing' && (
+                  <div className="h-28 w-full max-w-sm border rounded-2xl flex items-center justify-center bg-black/5 dark:bg-white/5">
+                    <span className="text-xl font-black text-indigo-500">{expansionWord}</span>
+                  </div>
+                )}
+
+                {expansionState === 'question' && (
+                  <div className="w-full max-w-sm flex flex-col gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {expansionOptions.map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => {
+                            const isCorrect = opt === expansionWord;
+                            const newScore = expansionScore + (isCorrect ? 20 : 0);
+                            const nextRound = expansionRound + 1;
+                            
+                            setExpansionScore(newScore);
+                            
+                            if (nextRound >= 3) {
+                              setDiagWordScore(newScore);
+                              completeDiagnostic(diagCompCorrect, diagSchulteTime, newScore);
+                            } else {
+                              setExpansionRound(nextRound);
+                              startWordExpansionRound();
+                            }
+                          }}
+                          className="p-2.5 rounded-xl border text-[11px] font-bold text-center hover:bg-indigo-50/15"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Diagnostic Step 6: Result */}
+          {diagStep === 6 && (
+            <div className="flex flex-col gap-4 py-4 items-center text-center">
+              <div className="h-14 w-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xl font-black grid place-items-center">
+                ✓
+              </div>
+              <h4 className="text-lg font-black text-emerald-500">{t('tr_lab_test_completed' as any)}</h4>
+              
+              <div className="p-4 border rounded-2xl w-full max-w-sm text-xs flex flex-col gap-2.5">
+                <div className="flex justify-between border-b pb-1.5">
+                  <span>Okuma Hızı (WPM):</span>
+                  <strong>{diagReadWpm} WPM</strong>
+                </div>
+                <div className="flex justify-between border-b pb-1.5">
+                  <span>Anlama Testi:</span>
+                  <strong>{diagCompCorrect} / 2</strong>
+                </div>
+                <div className="flex justify-between border-b pb-1.5">
+                  <span>Schulte Arama Hızı:</span>
+                  <strong>{diagSchulteTime}s</strong>
+                </div>
+                <div className="flex justify-between text-indigo-400 font-bold pt-1">
+                  <span>Seviye Seviyeniz:</span>
+                  <span className="uppercase">{t(`tr_lab_level_${trainingLevel}` as any)}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setActiveModule(null);
+                }}
+                className="h-10 px-6 rounded-xl bg-indigo-650 text-white text-xs font-bold mt-2"
+              >
+                {lang === 'tr' ? 'Panele Dön' : 'Return to Panel'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
