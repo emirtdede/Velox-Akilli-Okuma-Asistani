@@ -5,7 +5,6 @@
 
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { exec } from 'child_process';
@@ -16,9 +15,10 @@ dotenv.config();
 let envAiClient: GoogleGenAI | null = null;
 const AI_MODEL_FALLBACKS = [
   process.env.GEMINI_MODEL || 'gemini-3.5-flash',
-  'gemini-flash-latest',
+  'gemini-3.1-pro',
   'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
 ].filter((model, index, models) => Boolean(model) && models.indexOf(model) === index);
 
 const RETRYABLE_AI_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
@@ -170,27 +170,39 @@ async function generateStructuredJson(
 
   if (provider === 'gemini') {
     const client = getGeminiClient(apiKey);
-    const geminiModel = model || AI_MODEL_FALLBACKS[0] || 'gemini-3.5-flash';
+    const modelsToTry = model ? [model, ...AI_MODEL_FALLBACKS] : AI_MODEL_FALLBACKS;
     
-    const response = await client.models.generateContent({
-      model: geminiModel,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: schema
-      }
-    });
+    let lastError: any = null;
+    for (const currentModel of modelsToTry) {
+      try {
+        console.log(`[AI] Attempting Gemini content generation with model: ${currentModel}`);
+        const response = await client.models.generateContent({
+          model: currentModel,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: schema
+          }
+        });
 
-    const text = response.text;
-    if (!text) throw new Error("Gemini modelinden boş yanıt döndü.");
-    return JSON.parse(text.trim());
+        const text = response.text;
+        if (!text) throw new Error("Gemini modelinden boş yanıt döndü.");
+        return JSON.parse(text.trim());
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[AI Warning] Gemini generation failed with model ${currentModel}:`, err.message || err);
+      }
+    }
+    
+    const friendlyMessage = toUserFacingAiError(lastError);
+    throw new Error(friendlyMessage);
   }
 
   if (provider === 'openai') {
     if (!apiKey) {
       throw new Error("OpenAI API Key bulunamadı. Ayarlar kısmından ekleyin.");
     }
-    const openaiModel = model || 'gpt-4o-mini';
+    const openaiModel = model || 'gpt-5.4-mini';
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -226,7 +238,7 @@ async function generateStructuredJson(
     if (!apiKey) {
       throw new Error("Claude (Anthropic) API Key bulunamadı. Ayarlar kısmından ekleyin.");
     }
-    const claudeModel = model || 'claude-3-5-sonnet-20241022';
+    const claudeModel = model || 'claude-sonnet-5';
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -758,13 +770,16 @@ ${text.slice(0, 4000)}`;
 
   // Vite Integration
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = process.env.NODE_ENV === 'production'
+      ? __dirname
+      : path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

@@ -17,12 +17,13 @@ export interface DialogConfig {
 export function useCustomModal() {
   const [dialogConfig, setDialogConfig] = useState<DialogConfig | null>(null);
 
-  const showCustomAlert = useCallback((message: string, title = 'Bilgi') => {
+  const showCustomAlert = useCallback((message: string, title = 'Bilgi', onConfirm?: () => void) => {
     setDialogConfig({
       isOpen: true,
       title,
       message,
-      type: 'alert'
+      type: 'alert',
+      onConfirm
     });
   }, []);
 

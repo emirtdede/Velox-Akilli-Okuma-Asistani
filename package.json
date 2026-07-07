@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "Velox - Akıllı Okuma Asistanı",
-  "author": "Vellium",
+  "author": "Vellium.dev",
   "main": "electron.cjs",
   "type": "module",
   "scripts": {
@@ -47,7 +47,8 @@
   "build": {
     "appId": "com.vellium.velox",
     "productName": "Velox",
-    "copyright": "Copyright © 2026 Vellium",
+    "artifactName": "Velox Setup.${ext}",
+    "copyright": "Copyright © 2026 Vellium.dev",
     "directories": {
       "output": "dist-desktop"
     },
@@ -66,7 +67,9 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Velox",
+      "uninstallDisplayName": "Velox"
     }
   }
 }

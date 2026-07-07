@@ -8,6 +8,7 @@ import { Palette, KeyRound, Keyboard, Database, BookOpenCheck, FileDown, UploadC
 import { useTranslation } from '../utils/i18n';
 import { PageHeader } from '../components/common/UIHelpers';
 import ThemeSelector from '../components/ThemeSelector';
+import { StorageService } from '../utils/storage';
 import { SettingsTab } from '../types';
 
 function parseCustomDate(dateStr: string): Date {
@@ -42,10 +43,16 @@ export function SettingsPage({
   setAiProvider,
   geminiDraftKey,
   setGeminiDraftKey,
+  geminiDraftModel,
+  setGeminiDraftModel,
   openaiDraftKey,
   setOpenaiDraftKey,
+  openaiDraftModel,
+  setOpenaiDraftModel,
   claudeDraftKey,
   setClaudeDraftKey,
+  claudeDraftModel,
+  setClaudeDraftModel,
   localUrlDraft,
   setLocalUrlDraft,
   localModelDraft,
@@ -60,8 +67,19 @@ export function SettingsPage({
   onClearAiSettings,
   t,
   lang,
-  setLanguage
+  setLanguage,
+  showAlert,
+  showConfirm
 }: any) {
+  const triggerAlert = (msg: string, callback?: () => void) => {
+    if (showAlert) {
+      showAlert(msg, lang === 'tr' ? 'Bilgi' : 'Information', callback);
+    } else {
+      alert(msg);
+      if (callback) callback();
+    }
+  };
+
   const [selectedProvider, setSelectedProvider] = useState(aiProvider);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [optDays, setOptDays] = useState(30);
@@ -126,7 +144,10 @@ export function SettingsPage({
       openaiDraftKey,
       claudeDraftKey,
       localUrlDraft,
-      localModelDraft
+      localModelDraft,
+      geminiDraftModel,
+      openaiDraftModel,
+      claudeDraftModel
     );
   };
 
@@ -160,13 +181,13 @@ export function SettingsPage({
       try {
         const data = JSON.parse(e.target?.result as string);
         if (typeof data !== 'object' || data === null) {
-          alert(t('st_validation_invalid_backup'));
+          triggerAlert(t('st_validation_invalid_backup'));
           return;
         }
         const keys = Object.keys(data);
         const hasVeloxKey = keys.some(k => k.startsWith('velox_') || k.startsWith('readflow_'));
         if (!hasVeloxKey) {
-          alert(t('st_validation_no_velox_data'));
+          triggerAlert(t('st_validation_no_velox_data'));
           return;
         }
 
@@ -174,31 +195,26 @@ export function SettingsPage({
           localStorage.setItem(k, data[k]);
         });
 
-        alert(t('st_validation_success_restore'));
-        window.location.reload();
+        triggerAlert(t('st_validation_success_restore'), () => {
+          window.location.reload();
+        });
       } catch (err) {
-        alert('Error: ' + (err as Error).message);
+        triggerAlert('Error: ' + (err as Error).message);
       }
     };
     reader.readAsText(file);
   };
 
-  const handleResetAll = () => {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith('velox_') || key.startsWith('readflow_'))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(k => localStorage.removeItem(k));
-    alert(t('st_validation_success_reset'));
-    window.location.reload();
+  const handleResetAll = async () => {
+    await StorageService.resetDatabase();
+    triggerAlert(t('st_validation_success_reset'), () => {
+      window.location.reload();
+    });
   };
 
   const handleOptimizeData = () => {
     if (optDays < 1) {
-      alert('Please enter a valid number of days.');
+      triggerAlert('Please enter a valid number of days.');
       return;
     }
     const cutoff = new Date();
@@ -263,8 +279,9 @@ export function SettingsPage({
       }
     });
 
-    alert(t('st_validation_success_optimize'));
-    window.location.reload();
+    triggerAlert(t('st_validation_success_optimize'), () => {
+      window.location.reload();
+    });
   };
 
   const isResetEnabled = resetConfirmText.toLowerCase() === (lang === 'tr' ? 'sil' : 'sil');
@@ -326,7 +343,7 @@ export function SettingsPage({
               <hr className="border-stone-100 dark:border-zinc-900" />
  
               {selectedProvider === 'gemini' && (
-                <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="flex flex-col gap-2">
                     <span className="text-xs font-bold">Gemini API Key</span>
                     <input
@@ -338,11 +355,21 @@ export function SettingsPage({
                       className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
                     />
                   </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-bold">{lang === 'tr' ? 'Model Adı (İsteğe Bağlı)' : 'Model Name (Optional)'}</span>
+                    <input
+                      type="text"
+                      value={geminiDraftModel}
+                      onChange={(event) => setGeminiDraftModel(event.target.value)}
+                      placeholder={lang === 'tr' ? 'örn: gemini-3.5-flash' : 'ex: gemini-3.5-flash'}
+                      className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
+                    />
+                  </label>
                 </div>
               )}
  
               {selectedProvider === 'openai' && (
-                <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="flex flex-col gap-2">
                     <span className="text-xs font-bold">OpenAI API Key</span>
                     <input
@@ -354,11 +381,21 @@ export function SettingsPage({
                       className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
                     />
                   </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-bold">{lang === 'tr' ? 'Model Adı (İsteğe Bağlı)' : 'Model Name (Optional)'}</span>
+                    <input
+                      type="text"
+                      value={openaiDraftModel}
+                      onChange={(event) => setOpenaiDraftModel(event.target.value)}
+                      placeholder={lang === 'tr' ? 'örn: gpt-5.4-mini' : 'ex: gpt-5.4-mini'}
+                      className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
+                    />
+                  </label>
                 </div>
               )}
  
               {selectedProvider === 'claude' && (
-                <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="flex flex-col gap-2">
                     <span className="text-xs font-bold">Anthropic Claude API Key</span>
                     <input
@@ -367,6 +404,16 @@ export function SettingsPage({
                       value={claudeDraftKey}
                       onChange={(event) => setClaudeDraftKey(event.target.value)}
                       placeholder="Claude API key"
+                      className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-bold">{lang === 'tr' ? 'Model Adı (İsteğe Bağlı)' : 'Model Name (Optional)'}</span>
+                    <input
+                      type="text"
+                      value={claudeDraftModel}
+                      onChange={(event) => setClaudeDraftModel(event.target.value)}
+                      placeholder={lang === 'tr' ? 'örn: claude-sonnet-5' : 'ex: claude-sonnet-5'}
                       className="h-12 px-4 rounded-xl border border-stone-200 dark:border-zinc-800 bg-white text-stone-900 dark:bg-zinc-950 dark:text-zinc-100 text-sm outline-none"
                     />
                   </label>

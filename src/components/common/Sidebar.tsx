@@ -87,8 +87,7 @@ export function Sidebar({
                 {isCompact && <ChevronsRight className="absolute w-5 h-5 opacity-0 group-hover/brand:opacity-100 transition-opacity text-indigo-500" />}
               </button>
               <div className={`${labelClass} transition-all duration-200 min-w-0 overflow-hidden`}>
-                <h1 className="text-lg font-black tracking-tight text-indigo-500 leading-tight">Velox</h1>
-                <p className="text-[10px] opacity-65 whitespace-nowrap">{t('home_subtitle')}</p>
+                <h1 className="text-lg font-black tracking-tight text-indigo-500 leading-none">Velox</h1>
               </div>
             </div>
             {isFull && (

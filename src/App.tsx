@@ -238,10 +238,16 @@ export default function App() {
     setOpenaiApiKey,
     openaiDraftKey,
     setOpenaiDraftKey,
+    openaiDraftModel,
+    setOpenaiDraftModel,
     claudeApiKey,
     setClaudeApiKey,
     claudeDraftKey,
     setClaudeDraftKey,
+    claudeDraftModel,
+    setClaudeDraftModel,
+    geminiDraftModel,
+    setGeminiDraftModel,
     localUrl,
     setLocalUrl,
     localUrlDraft,
@@ -415,6 +421,8 @@ export default function App() {
               isLightTheme={isLightTheme}
               currentTheme={currentTheme}
               books={books}
+              showAlert={showCustomAlert}
+              showConfirm={showCustomConfirm}
             />
           )}
 
@@ -429,10 +437,16 @@ export default function App() {
               setAiProvider={setAiProvider}
               geminiDraftKey={geminiDraftKey}
               setGeminiDraftKey={setGeminiDraftKey}
+              geminiDraftModel={geminiDraftModel}
+              setGeminiDraftModel={setGeminiDraftModel}
               openaiDraftKey={openaiDraftKey}
               setOpenaiDraftKey={setOpenaiDraftKey}
+              openaiDraftModel={openaiDraftModel}
+              setOpenaiDraftModel={setOpenaiDraftModel}
               claudeDraftKey={claudeDraftKey}
               setClaudeDraftKey={setClaudeDraftKey}
+              claudeDraftModel={claudeDraftModel}
+              setClaudeDraftModel={setClaudeDraftModel}
               localUrlDraft={localUrlDraft}
               setLocalUrlDraft={setLocalUrlDraft}
               localModelDraft={localModelDraft}
@@ -448,6 +462,8 @@ export default function App() {
               t={t}
               lang={lang}
               setLanguage={setLanguage}
+              showAlert={showCustomAlert}
+              showConfirm={showCustomConfirm}
             />
           )}
 

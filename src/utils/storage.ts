@@ -96,31 +96,24 @@ const DEFAULT_PREFS: UserPreferences = {
 };
 
 const DEFAULT_STATS: UserStats = {
-  totalWordsRead: 14200,
-  totalReadingTimeSeconds: 3450,
-  dailyStreak: 3,
+  totalWordsRead: 0,
+  totalReadingTimeSeconds: 0,
+  dailyStreak: 0,
   lastReadDate: new Date().toISOString().split('T')[0],
-  quizStreak: 1,
+  quizStreak: 0,
   lastQuizDate: new Date().toISOString().split('T')[0],
-  cardStreak: 2,
+  cardStreak: 0,
   lastCardDate: new Date().toISOString().split('T')[0],
-  maxSpeedWpm: 450,
-  longestSessionSeconds: 980,
+  maxSpeedWpm: 0,
+  longestSessionSeconds: 0,
   dailyGoalWords: 3000,
-  history: [
-    { date: new Date(Date.now() - 5 * 86400000).toISOString().split('T')[0], wordCount: 2800, durationSeconds: 680 },
-    { date: new Date(Date.now() - 4 * 86400000).toISOString().split('T')[0], wordCount: 3100, durationSeconds: 720 },
-    { date: new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0], wordCount: 1500, durationSeconds: 340 },
-    { date: new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0], wordCount: 3400, durationSeconds: 810 },
-    { date: new Date(Date.now() - 1 * 86400000).toISOString().split('T')[0], wordCount: 3000, durationSeconds: 700 },
-    { date: new Date().toISOString().split('T')[0], wordCount: 400, durationSeconds: 200 }
-  ]
+  history: []
 };
 
 // Initial welcome sample content
 const SAMPLE_DOCS: BookMark[] = [
   {
-    id: 'sample-welcome',
+    id: 'sample-welcome-tr',
     title: 'Velox okuma rehberi',
     content: `Velox platformuna hoş geldiniz! Bu modern uygulama hızlı okuma becerilerinizi geliştirmek, odağınızı zirveye çıkarmak ve kitap okuma verimliliğinizi katlamak için özel olarak tasarlandı. 
 
@@ -147,19 +140,83 @@ Kısayol Tuşları:
     speedWpm: 250,
     groupSize: 1,
     estimatedMinutesTotal: 1,
-    tags: ['Rehber', 'Başlangıç'],
-    difficultyInfo: {
-      score: 30,
-      level: 'Kolay',
-      complexWords: ['RSVP', 'ORP', 'Kognitif', 'Optimal'],
-      description: 'Metin sade, öğretici ve yönlendirici bir dille yazılmış olup her okuyucu kitlesi için son derece akıcıdır.'
-    }
+    tags: ['Rehber', 'Başlangıç']
+  },
+  {
+    id: 'sample-welcome-en',
+    title: 'Velox Speed Reading Guide',
+    content: `Welcome to the Velox platform! This modern application is specifically designed to improve your speed reading skills, maximize your focus, and multiply your reading efficiency.
+
+Using the RSVP (Rapid Serial Visual Presentation) engine in our application, you can read words fluently one by one or in groups without tiring your eye muscles and wasting time on lines.
+
+Thanks to the Optimal Recognition Point (ORP) feature, the focus letter in the middle of the word is highlighted in red. This allows your eye to grasp the meaning of the word in seconds and reduces word searches to zero.
+
+The Smart Pausing System adds small waiting times at punctuation marks to mimic your natural reading. For example, it automatically slows down at a comma (+100 ms), period (+300 ms), or end of paragraph (+500 ms) to capture a perfect cognitive rhythm.
+
+Thanks to our AI assistant, you can summarize every text you read with a single click, analyze word difficulty, and instantly learn the meaning, synonyms, and example sentences of a word you are curious about by clicking on it!
+
+Shortcut Keys:
+- [Space]: Play / Pause
+- [Left Arrow]: Rewind 10 words
+- [Right Arrow]: Fast forward 10 words
+- [Up Arrow]: Increase speed (+25 WPM)
+- [Down Arrow]: Decrease speed (-25 WPM)
+- [Esc]: Safely exit the reader
+
+Now you can experience it for the first time by clicking the "Start Reading" button, and easily add your own books, word, md or pdf documents to your library! We wish you success.`,
+    currentWordIndex: 0,
+    progress: 0,
+    lastReadDate: new Date().toISOString().split('T')[0],
+    speedWpm: 250,
+    groupSize: 1,
+    estimatedMinutesTotal: 1,
+    tags: ['Guide', 'Beginner']
   }
 ];
 
 export const StorageService = {
+  async resetDatabase(): Promise<void> {
+    for (const key of Object.keys(memoryCache)) {
+      delete memoryCache[key];
+    }
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('velox_') || key.startsWith('readflow_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => {
+      localStorage.removeItem(k);
+      localStorage.removeItem(getTimestampKey(k));
+    });
+    if (LocalDatabase.isAvailable()) {
+      for (const key of STORAGE_KEYS) {
+        await LocalDatabase.remove(key).catch(() => {});
+      }
+    }
+  },
+
   async hydrateFromIndexedDb(): Promise<boolean> {
     if (!LocalDatabase.isAvailable()) return false;
+
+    // One-time database reset migration to clear legacy mock data
+    const CURRENT_DB_VERSION = '1.0.2';
+    try {
+      const localVersion = localStorage.getItem('velox_db_version');
+      if (localVersion !== CURRENT_DB_VERSION) {
+        console.warn('[StorageService] Legacy database version or first run. Clearing database...');
+        await this.resetDatabase();
+        localStorage.setItem('velox_db_version', CURRENT_DB_VERSION);
+        if (LocalDatabase.isAvailable()) {
+          await LocalDatabase.set('velox_db_version', CURRENT_DB_VERSION).catch(() => {});
+        }
+        window.location.reload();
+        return true;
+      }
+    } catch (err) {
+      console.error('[StorageService] Migration failed:', err);
+    }
 
     const defaults: Record<StorageKey, unknown> = {
       [BOOKS_KEY]: SAMPLE_DOCS,
@@ -424,6 +481,20 @@ export const StorageService = {
       stats.quizStreak = 1;
     }
     stats.lastQuizDate = todayStr;
+
+    // Increment daily quiz count in history
+    const historyItemIndex = stats.history.findIndex(h => h.date === todayStr);
+    if (historyItemIndex !== -1) {
+      stats.history[historyItemIndex].quizCount = (stats.history[historyItemIndex].quizCount || 0) + 1;
+    } else {
+      stats.history.push({
+        date: todayStr,
+        wordCount: 0,
+        durationSeconds: 0,
+        quizCount: 1
+      });
+    }
+
     this.saveStats(stats);
     return stats;
   },
@@ -449,6 +520,20 @@ export const StorageService = {
       stats.cardStreak = 1;
     }
     stats.lastCardDate = todayStr;
+
+    // Increment daily card reviews count in history
+    const historyItemIndex = stats.history.findIndex(h => h.date === todayStr);
+    if (historyItemIndex !== -1) {
+      stats.history[historyItemIndex].cardReviewsCount = (stats.history[historyItemIndex].cardReviewsCount || 0) + 1;
+    } else {
+      stats.history.push({
+        date: todayStr,
+        wordCount: 0,
+        durationSeconds: 0,
+        cardReviewsCount: 1
+      });
+    }
+
     this.saveStats(stats);
     return stats;
   },

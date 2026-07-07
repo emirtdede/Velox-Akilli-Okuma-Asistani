@@ -7,6 +7,8 @@ export interface ReadingHistory {
   date: string; // YYYY-MM-DD
   wordCount: number;
   durationSeconds: number;
+  quizCount?: number;
+  cardReviewsCount?: number;
 }
 
 export interface UserStats {

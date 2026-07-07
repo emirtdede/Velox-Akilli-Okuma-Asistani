@@ -22,10 +22,16 @@ export function useAiAssistant({ selectedBook, refreshBooks, lang }: { selectedB
   const [aiProvider, setAiProvider] = useState<string>(() => localStorage.getItem('velox_ai_provider') || 'gemini');
   const [geminiApiKey, setGeminiApiKey] = useState(() => readLocalWithLegacy(GEMINI_KEY, LEGACY_GEMINI_KEY));
   const [geminiDraftKey, setGeminiDraftKey] = useState(() => readLocalWithLegacy(GEMINI_KEY, LEGACY_GEMINI_KEY));
+  const [geminiModel, setGeminiModel] = useState(() => localStorage.getItem('velox_gemini_model') || '');
+  const [geminiDraftModel, setGeminiDraftModel] = useState(() => localStorage.getItem('velox_gemini_model') || '');
   const [openaiApiKey, setOpenaiApiKey] = useState(() => localStorage.getItem('velox_openai_api_key') || '');
   const [openaiDraftKey, setOpenaiDraftKey] = useState(() => localStorage.getItem('velox_openai_api_key') || '');
+  const [openaiModel, setOpenaiModel] = useState(() => localStorage.getItem('velox_openai_model') || '');
+  const [openaiDraftModel, setOpenaiDraftModel] = useState(() => localStorage.getItem('velox_openai_model') || '');
   const [claudeApiKey, setClaudeApiKey] = useState(() => localStorage.getItem('velox_claude_api_key') || '');
   const [claudeDraftKey, setClaudeDraftKey] = useState(() => localStorage.getItem('velox_claude_api_key') || '');
+  const [claudeModel, setClaudeModel] = useState(() => localStorage.getItem('velox_claude_model') || '');
+  const [claudeDraftModel, setClaudeDraftModel] = useState(() => localStorage.getItem('velox_claude_model') || '');
   const [localUrl, setLocalUrl] = useState(() => localStorage.getItem('velox_local_url') || 'http://localhost:11434');
   const [localUrlDraft, setLocalUrlDraft] = useState(() => localStorage.getItem('velox_local_url') || 'http://localhost:11434');
   const [localModel, setLocalModel] = useState(() => localStorage.getItem('velox_local_model') || 'llama3');
@@ -52,10 +58,13 @@ export function useAiAssistant({ selectedBook, refreshBooks, lang }: { selectedB
     if (provider === 'gemini' && geminiKey) {
       headers['x-ai-api-key'] = geminiKey;
       headers['x-gemini-api-key'] = geminiKey;
+      if (geminiModel) headers['x-ai-model'] = geminiModel;
     } else if (provider === 'openai' && openaiKey) {
       headers['x-ai-api-key'] = openaiKey;
+      if (openaiModel) headers['x-ai-model'] = openaiModel;
     } else if (provider === 'claude' && claudeKey) {
       headers['x-ai-api-key'] = claudeKey;
+      if (claudeModel) headers['x-ai-model'] = claudeModel;
     } else if (provider === 'local') {
       headers['x-ai-local-url'] = lUrl;
       headers['x-ai-model'] = lModel;
@@ -65,7 +74,7 @@ export function useAiAssistant({ selectedBook, refreshBooks, lang }: { selectedB
       .then(response => response.json())
       .then(data => setAiStatus({ enabled: Boolean(data.enabled), provider: data.provider || 'none', checked: true }))
       .catch(() => setAiStatus({ enabled: false, provider: 'none', checked: true }));
-  }, [aiProvider, geminiApiKey, openaiApiKey, claudeApiKey, localUrl, localModel]);
+  }, [aiProvider, geminiApiKey, geminiModel, openaiApiKey, openaiModel, claudeApiKey, claudeModel, localUrl, localModel]);
 
   useEffect(() => {
     refreshAiStatus(aiProvider, geminiApiKey, openaiApiKey, claudeApiKey, localUrl, localModel);
@@ -77,7 +86,10 @@ export function useAiAssistant({ selectedBook, refreshBooks, lang }: { selectedB
     openaiKey: string,
     claudeKey: string,
     lUrl: string,
-    lModel: string
+    lModel: string,
+    gModel = '',
+    oModel = '',
+    cModel = ''
   ) => {
     localStorage.setItem('velox_ai_provider', provider);
     setAiProvider(provider);
@@ -86,13 +98,25 @@ export function useAiAssistant({ selectedBook, refreshBooks, lang }: { selectedB
     setGeminiApiKey(geminiKey.trim());
     setGeminiDraftKey(geminiKey.trim());
 
+    localStorage.setItem('velox_gemini_model', gModel.trim());
+    setGeminiModel(gModel.trim());
+    setGeminiDraftModel(gModel.trim());
+
     localStorage.setItem('velox_openai_api_key', openaiKey.trim());
     setOpenaiApiKey(openaiKey.trim());
     setOpenaiDraftKey(openaiKey.trim());
 
+    localStorage.setItem('velox_openai_model', oModel.trim());
+    setOpenaiModel(oModel.trim());
+    setOpenaiDraftModel(oModel.trim());
+
     localStorage.setItem('velox_claude_api_key', claudeKey.trim());
     setClaudeApiKey(claudeKey.trim());
     setClaudeDraftKey(claudeKey.trim());
+
+    localStorage.setItem('velox_claude_model', cModel.trim());
+    setClaudeModel(cModel.trim());
+    setClaudeDraftModel(cModel.trim());
 
     localStorage.setItem('velox_local_url', lUrl.trim());
     setLocalUrl(lUrl.trim());
@@ -114,14 +138,26 @@ export function useAiAssistant({ selectedBook, refreshBooks, lang }: { selectedB
     localStorage.removeItem(LEGACY_GEMINI_KEY);
     setGeminiApiKey('');
     setGeminiDraftKey('');
+    
+    localStorage.removeItem('velox_gemini_model');
+    setGeminiModel('');
+    setGeminiDraftModel('');
 
     localStorage.removeItem('velox_openai_api_key');
     setOpenaiApiKey('');
     setOpenaiDraftKey('');
 
+    localStorage.removeItem('velox_openai_model');
+    setOpenaiModel('');
+    setOpenaiDraftModel('');
+
     localStorage.removeItem('velox_claude_api_key');
     setClaudeApiKey('');
     setClaudeDraftKey('');
+
+    localStorage.removeItem('velox_claude_model');
+    setClaudeModel('');
+    setClaudeDraftModel('');
 
     localStorage.removeItem('velox_local_url');
     setLocalUrl('http://localhost:11434');
@@ -144,16 +180,19 @@ export function useAiAssistant({ selectedBook, refreshBooks, lang }: { selectedB
     if (aiProvider === 'gemini' && geminiApiKey) {
       headers['x-ai-api-key'] = geminiApiKey;
       headers['x-gemini-api-key'] = geminiApiKey;
+      if (geminiModel) headers['x-ai-model'] = geminiModel;
     } else if (aiProvider === 'openai' && openaiApiKey) {
       headers['x-ai-api-key'] = openaiApiKey;
+      if (openaiModel) headers['x-ai-model'] = openaiModel;
     } else if (aiProvider === 'claude' && claudeApiKey) {
       headers['x-ai-api-key'] = claudeApiKey;
+      if (claudeModel) headers['x-ai-model'] = claudeModel;
     } else if (aiProvider === 'local') {
       headers['x-ai-local-url'] = localUrl;
       headers['x-ai-model'] = localModel;
     }
     return headers;
-  }, [aiProvider, lang, geminiApiKey, openaiApiKey, claudeApiKey, localUrl, localModel]);
+  }, [aiProvider, lang, geminiApiKey, geminiModel, openaiApiKey, openaiModel, claudeApiKey, claudeModel, localUrl, localModel]);
 
   const postAi = useCallback(async (endpoint: string, body: Record<string, unknown>) => {
     const response = await fetch(endpoint, {
@@ -268,10 +307,19 @@ export function useAiAssistant({ selectedBook, refreshBooks, lang }: { selectedB
     setOpenaiApiKey,
     openaiDraftKey,
     setOpenaiDraftKey,
+    openaiModel,
+    openaiDraftModel,
+    setOpenaiDraftModel,
     claudeApiKey,
     setClaudeApiKey,
     claudeDraftKey,
     setClaudeDraftKey,
+    claudeModel,
+    claudeDraftModel,
+    setClaudeDraftModel,
+    geminiModel,
+    geminiDraftModel,
+    setGeminiDraftModel,
     localUrl,
     setLocalUrl,
     localUrlDraft,

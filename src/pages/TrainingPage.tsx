@@ -24,6 +24,8 @@ interface TrainingPageProps {
   isLightTheme: boolean;
   currentTheme: any;
   books: BookMark[];
+  showAlert?: (message: string, title?: string, onConfirm?: () => void) => void;
+  showConfirm?: (message: string, onConfirm: () => void, title?: string) => void;
 }
 
 export function TrainingPage({
@@ -38,7 +40,9 @@ export function TrainingPage({
   mutedClass,
   isLightTheme,
   currentTheme,
-  books
+  books,
+  showAlert,
+  showConfirm
 }: TrainingPageProps) {
   const { t, lang } = useTranslation();
   const [activeModule, setActiveModule] = useState<string | null>(null);
@@ -505,6 +509,7 @@ export function TrainingPage({
         surfaceClass={surfaceClass}
         onSaveSession={onSaveSession}
         books={books}
+        showAlert={showAlert}
       />
 
       {/* Diagnostic Assessment Test active view */}

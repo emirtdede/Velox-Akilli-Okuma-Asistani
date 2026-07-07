@@ -82,17 +82,51 @@ export function HomePage({
 
   // General interaction scatter chart data (Quizzes, AI content, Cards, Readings, Clicks)
   const interactionData = useMemo(() => {
+    let readingReports: any[] = [];
+    let quizReports: any[] = [];
+    let cardReports: any[] = [];
+    try {
+      readingReports = JSON.parse(localStorage.getItem('velox_reading_reports_history') || '[]');
+      quizReports = JSON.parse(localStorage.getItem('velox_quiz_reports_history') || '[]');
+      cardReports = JSON.parse(localStorage.getItem('velox_card_reports_history') || '[]');
+    } catch (e) {
+      console.error(e);
+    }
+
     return Array.from({ length: 7 }, (_, index) => {
       const date = new Date();
       date.setDate(date.getDate() - (6 - index));
       const dateStr = date.toLocaleDateString('tr-TR', { weekday: 'short' });
+      const dayIsoStr = date.toISOString().split('T')[0];
+      const dayLocaleStr = date.toLocaleDateString('tr-TR');
+
+      const historyItem = (stats?.history || []).find((h: any) => h.date === dayIsoStr);
       
-      const isToday = index === 6;
-      const wordsCount = isToday ? Math.max(1, Math.round(todayWords / 150)) : Math.round(Math.random() * 8 + 4);
-      const quizzesCount = isToday ? quizHistory.filter((h: any) => h.date.startsWith(new Date().toLocaleDateString('tr-TR'))).length : Math.round(Math.random() * 2);
-      const cardsCount = isToday ? Math.round(totalReviews / 5) : Math.round(Math.random() * 6 + 1);
-      const aiUsageCount = isToday ? 4 : Math.round(Math.random() * 3 + 1);
-      const clicksCount = isToday ? 15 : Math.round(Math.random() * 15 + 5);
+      // 1. Okuma (Reading) count (represented as normalized sessions)
+      const wordsCount = historyItem ? Math.max(0, Math.round(historyItem.wordCount / 200)) : 0;
+      
+      // 2. Quizler (Quizzes) count
+      const quizDbCount = quizHistory.filter((q: any) => {
+        if (!q.date) return false;
+        return q.date.includes(dayLocaleStr) || q.date.includes(date.toLocaleDateString());
+      }).length;
+      const quizzesCount = historyItem?.quizCount || quizDbCount;
+
+      // 3. Kartlar (Cards) reviews count
+      const cardsCount = historyItem?.cardReviewsCount || 0;
+
+      // 4. Yapay Zeka (AI) usage count
+      const countReportsForDay = (reports: any[]) => {
+        return reports.filter((r: any) => {
+          if (!r.id) return false;
+          const rDate = new Date(Number(r.id));
+          return !isNaN(rDate.getTime()) && rDate.toISOString().split('T')[0] === dayIsoStr;
+        }).length;
+      };
+      const aiUsageCount = countReportsForDay(readingReports) + countReportsForDay(quizReports) + countReportsForDay(cardReports);
+
+      // 5. Tıklamalar (Clicks) - computed based on actual actions
+      const clicksCount = wordsCount * 2 + quizzesCount * 5 + cardsCount * 3 + aiUsageCount * 4;
 
       return [
         { day: dateStr, category: 'Okuma', count: wordsCount },
@@ -102,7 +136,7 @@ export function HomePage({
         { day: dateStr, category: 'Tıklamalar', count: clicksCount }
       ];
     }).flat();
-  }, [todayWords, quizHistory, totalReviews]);
+  }, [stats?.history, quizHistory]);
 
   const okumaPoints = useMemo(() => interactionData.filter(d => d.category === 'Okuma'), [interactionData]);
   const quizPoints = useMemo(() => interactionData.filter(d => d.category === 'Quizler'), [interactionData]);

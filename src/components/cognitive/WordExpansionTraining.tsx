@@ -26,6 +26,7 @@ interface WordExpansionTrainingProps {
   surfaceClass: string;
   onSaveSession: (session: any) => void;
   books: any[];
+  showAlert?: (message: string, title?: string, onConfirm?: () => void) => void;
 }
 
 export default function WordExpansionTraining({
@@ -38,8 +39,17 @@ export default function WordExpansionTraining({
   mutedClass,
   surfaceClass,
   onSaveSession,
-  books
+  books,
+  showAlert
 }: WordExpansionTrainingProps) {
+  const triggerAlert = (msg: string) => {
+    if (showAlert) {
+      showAlert(msg, lang === 'tr' ? 'Hata' : 'Hata');
+    } else {
+      alert(msg);
+    }
+  };
+
   const [expansionState, setExpansionState] = useState<'idle' | 'flashing' | 'question' | 'feedback' | 'summary'>('idle');
   const [expansionWord, setExpansionWord] = useState<string>('');
   const [expansionOptions, setExpansionOptions] = useState<string[]>([]);
@@ -153,7 +163,7 @@ export default function WordExpansionTraining({
             const text = await extractTextFromPdf(buffer);
             processUploadedText(text);
           } catch (err) {
-            alert(lang === 'tr' ? 'PDF dosyası ayrıştırılamadı.' : 'Could not parse PDF file.');
+            triggerAlert(lang === 'tr' ? 'PDF dosyası ayrıştırılamadı.' : 'Could not parse PDF file.');
           }
         };
         reader.readAsArrayBuffer(file);
@@ -165,7 +175,7 @@ export default function WordExpansionTraining({
             const text = await extractTextFromDocx(buffer);
             processUploadedText(text);
           } catch (err) {
-            alert(lang === 'tr' ? 'Word belgesi ayrıştırılamadı.' : 'Could not parse Word document.');
+            triggerAlert(lang === 'tr' ? 'Word belgesi ayrıştırılamadı.' : 'Could not parse Word document.');
           }
         };
         reader.readAsArrayBuffer(file);
@@ -177,7 +187,7 @@ export default function WordExpansionTraining({
             const text = await extractTextFromEpub(buffer);
             processUploadedText(text);
           } catch (err) {
-            alert(lang === 'tr' ? 'EPUB dosyası ayrıştırılamadı.' : 'Could not parse EPUB file.');
+            triggerAlert(lang === 'tr' ? 'EPUB dosyası ayrıştırılamadı.' : 'Could not parse EPUB file.');
           }
         };
         reader.readAsArrayBuffer(file);

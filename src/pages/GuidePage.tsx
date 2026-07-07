@@ -60,9 +60,11 @@ export function GuidePage({
         title: 'Yapay Zeka (AI) Entegrasyon Kılavuzu',
         desc: 'Velox; Google Gemini, OpenAI, Anthropic Claude ve Lokal Ollama API\'lerini tam olarak destekler.',
         gemini_title: 'Google Gemini Entegrasyonu',
-        gemini_desc: '1. Google AI Studio web sitesine gidin ve ücretsiz bir API Key oluşturun. \n2. Ayarlar → Yapay Zeka panelinde "Google Gemini" seçeneğini işaretleyip API anahtarını yapıştırın. \n3. Kaydettiğinizde belge analizi, zorluk tespiti ve otomatik test özellikleri hemen açılır.',
-        openai_title: 'OpenAI & Claude Entegrasyonu',
-        openai_desc: 'API anahtarınızı kendi servis sağlayıcı panellerinizden (platform.openai.com veya console.anthropic.com) edinin ve ilgili alanlara girerek aktif hale getirin.',
+        gemini_desc: '1. API Anahtarı: Google AI Studio web sitesine gidin ve ücretsiz bir API Key oluşturup yapıştırın.\n2. Model Adı (İsteğe Bağlı): Kullanmak istediğiniz özel bir Gemini modeli varsa ismini buraya yazabilirsiniz (örn: gemini-3.5-flash, gemini-3.1-pro, gemini-2.5-flash). Model isimlerini Google AI Studio dökümantasyonundan öğrenebilirsiniz.\n3. Boş Bırakılırsa Ne Olur?: Bu alanı boş bırakırsanız, Velox otomatik olarak en kararlı ve hızlı çalışan varsayılan modeli (gemini-3.5-flash) kullanır. Eğer bu model o an yoğunluktan çökerse arka planda otomatik olarak diğer kararlı alternatiflere (gemini-3.1-pro, gemini-2.5-flash vb.) geçiş yapar.',
+        openai_title: 'OpenAI Entegrasyonu',
+        openai_desc: '1. API Anahtarı: OpenAI geliştirici portalından (platform.openai.com) bir API anahtarı edinin ve yapıştırın.\n2. Model Adı (İsteğe Bağlı): Kullanmak istediğiniz özel OpenAI model adını girebilirsiniz (örn: gpt-5.5, gpt-5.4-mini).\n3. Boş Bırakılırsa Ne Olur?: Boş bırakılması halinde varsayılan olarak "gpt-5.4-mini" modeli kullanılır.',
+        claude_title: 'Anthropic Claude Entegrasyonu',
+        claude_desc: '1. API Anahtarı: Anthropic Console portalından (console.anthropic.com) bir API anahtarı edinin ve yapıştırın.\n2. Model Adı (İsteğe Bağlı): Kullanmak istediğiniz Claude model ismini girebilirsiniz (örn: claude-sonnet-5, claude-haiku-4.5).\n3. Boş Bırakılırsa Ne Olur?: Boş bırakılması halinde varsayılan olarak "claude-sonnet-5" modeli kullanılır.',
         local_title: 'Lokal Modeller (Ollama)',
         local_desc: '1. Bilgisayarınızda Ollama\'nın çalıştığından emin olun (genellikle http://localhost:11434 adresinde çalışır). \n2. Kullandığınız modeli (örneğin gemma2 veya llama3) Ollama üzerinden bilgisayarınıza indirin. \n3. Ayarlar sayfasında model adını ve lokal URL\'i yazarak lokal yapay zekayı kullanmaya başlayın.'
       },
@@ -140,12 +142,14 @@ export function GuidePage({
         f4_desc: 'Export database files, restore backups, optimize logs to save local storage, or permanently wipe database tables using type confirmations.'
       },
       ai: {
-        title: 'AI Engine Entegrasyon Guide',
+        title: 'AI Engine Integration Guide',
         desc: 'Velox supports API integrations with Google Gemini, OpenAI, Anthropic Claude, and local Ollama models.',
         gemini_title: 'Google Gemini Integration',
-        gemini_desc: '1. Visit Google AI Studio to acquire a free API Key. \n2. Go to Settings → AI Engine, choose Google Gemini, and paste the API key. \n3. Summaries, difficulty metrics, and quiz modules are immediately unlocked.',
-        openai_title: 'OpenAI & Claude Integration',
-        openai_desc: 'Generate API credentials inside your service provider dashboards (platform.openai.com or console.anthropic.com) and save them in Velox Settings.',
+        gemini_desc: '1. API Key: Visit Google AI Studio to acquire a free API Key.\n2. Model Name (Optional): You can type a custom model name (e.g., gemini-3.5-flash, gemini-3.1-pro, gemini-2.5-flash). You can look up model names in the Google AI Studio documentation.\n3. What if left blank?: If you leave it empty, Velox automatically uses the default stable model (gemini-3.5-flash). If the default model experiences downtime, it falls back to alternative stable models.',
+        openai_title: 'OpenAI Integration',
+        openai_desc: '1. API Key: Generate API credentials inside your OpenAI dashboard (platform.openai.com) and paste it.\n2. Model Name (Optional): Enter a custom OpenAI model name (e.g., gpt-5.5, gpt-5.4-mini).\n3. What if left blank?: Defaults to the "gpt-5.4-mini" model if empty.',
+        claude_title: 'Anthropic Claude Integration',
+        claude_desc: '1. API Key: Generate API credentials inside your Anthropic dashboard (console.anthropic.com) and paste it.\n2. Model Name (Optional): Enter a custom Claude model name (e.g., claude-sonnet-5, claude-haiku-4.5).\n3. What if left blank?: Defaults to the "claude-sonnet-5" model if empty.',
         local_title: 'Local Models (Ollama)',
         local_desc: '1. Ensure Ollama runs locally on your device (usually at http://localhost:11434). \n2. Pull a model (e.g., llama3 or gemma2) using terminal commands. \n3. Enter the local URL and model name in Settings to run AI fully offline.'
       },
@@ -337,8 +341,15 @@ export function GuidePage({
 
               <div className={`p-4 rounded-xl border ${softSurfaceClass} flex flex-col gap-2`}>
                 <h3 className={`text-sm font-black ${titleClass}`}>{tLocal('ai', 'openai_title')}</h3>
-                <p className={`leading-relaxed ${mutedClass}`}>
+                <p className={`leading-relaxed ${mutedClass} whitespace-pre-wrap`}>
                   {tLocal('ai', 'openai_desc')}
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border ${softSurfaceClass} flex flex-col gap-2`}>
+                <h3 className={`text-sm font-black ${titleClass}`}>{tLocal('ai', 'claude_title')}</h3>
+                <p className={`leading-relaxed ${mutedClass} whitespace-pre-wrap`}>
+                  {tLocal('ai', 'claude_desc')}
                 </p>
               </div>
 
